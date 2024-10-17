@@ -1,0 +1,143 @@
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Order received</title>
+  </head>
+  <body style="background-color: #333333; color: white; font-size: 16px">
+    <div style="background-color: rgba(51, 51, 51, 0.5); padding: 16px 0px;">
+      <div>
+        <img
+          class="logo"
+          style="
+            width: 82px;
+            height: 82px;
+            object-fit: contain;
+            margin: auto;
+            display: block;
+          "
+          src="https://res.cloudinary.com/dxocehutm/image/upload/v1726867648/blackdiamond/logo_buu5yj.png"
+          alt="Logo"
+        />
+
+        <p style="font-weight: 700; font-size: 36px; text-align: center">
+          We got your order
+        </p>
+
+        <img
+          style="width: 128px; height: 128px; margin: auto; display: block"
+          class="order-icon"
+          src="https://res.cloudinary.com/dxocehutm/image/upload/v1726869073/blackdiamond/Frame_1000001192_e7poza.png"
+          alt=""
+        />
+
+        <p style="margin: 24px auto; text-align: center; width: fit-content">
+          <a
+            href="<%= ticketLink %>"
+            target="_blank"
+            style="
+              font-family: Arial, sans-serif;
+              font-size: 16px;
+              color: #000;
+              text-decoration: none;
+              display: inline-block;
+              text-align: center;
+              padding: 10px 20px;
+              background-color: #c0c0c0;
+              font-weight: bold;
+              border: 1px solid #bbb;
+              box-shadow: 3px 3px 0px 0px rgba(0, 0, 0, 0.2);
+            "
+          >
+            GET TICKET
+          </a>
+        </p>
+
+        <div
+          class="container"
+          style="
+            padding: 16px;
+            max-width: 720px;
+            margin: 32px auto;
+            background-color: black;
+          "
+        >
+          <p style="margin: 0px; padding: 16px 0px">
+            <img
+              src="<%= order.event.coverImage %>"
+              class="cover-image"
+              alt="Event cover image"
+            />
+          </p>
+          <p
+            style="
+              font-weight: 500;
+              font-size: 20px;
+              margin: 0px;
+              padding: 16px 0px;
+            "
+          >
+            Order summary
+          </p>
+          <div style="color: #a3a7aa">
+            <p><%= order.event.name %></p>
+            <p><%= eventDate %></p>
+            <p>Order #<%= order.id %></p>
+            <p>Order date: <%= orderDate %></p>
+            <% if (order && order.tickets && order.tickets.length > 0) { %>
+              <% order.tickets.forEach(function(ticket) { %>
+                <div style="display: flex; justify-content: space-between; column-gap: 40px;width: 100%;">
+                  <p>1 x <%= ticket.ticketType.name %></p>
+                  <p>$<%= ticket.ticketType.price %></p>
+                </div>
+              <% }); %>
+            <% } else { %>
+              <p>No tickets found!</p>
+            <% } %>
+            <div
+              style="
+                display: flex;
+                justify-content: space-between;
+                column-gap: 40px;
+                color: white;
+                font-weight: 700;
+                width: 100%;
+              "
+            >
+              <p>Total</p>
+              <p style="padding-left: 12px;">$<%= amountToPay %></p>
+            </div>
+            <p>Contact us for any questions related to this purchase.</p>
+            <p>
+              This order is subject to Black Diamond Entertainment Terms of
+              Service and Privacy Policy, and Cookie Policy.
+            </p>
+          </div>
+        </div>
+
+        <img
+          class="logo"
+          style="
+            width: 82px;
+            height: 82px;
+            object-fit: contain;
+            margin: auto;
+            display: block;
+          "
+          src="https://res.cloudinary.com/dxocehutm/image/upload/v1726867648/blackdiamond/logo_buu5yj.png"
+          alt="Logo"
+        />
+
+        <p style="text-align: center; margin: 0px; padding: 16px 0px">
+          <a
+            style="color: #c0c0c0; text-decoration: none; text-align: center"
+            href=""
+            >Privacy Policy</a
+          >
+        </p>
+
+        <p style="text-align: center">© 2024 BLACK DIAMOND</p>
+      </div>
+    </div>
+  </body>
+</html>

@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+  </head>
+  <body style="font-family: Arial, sans-serif; margin: 0; padding: 0">
+    <div
+      style="
+        max-width: 600px;
+        margin: 0 auto;
+        padding: 20px;
+        border: 1px solid #e0e0e0;
+      "
+    >
+     
+
+      <!-- section -->
+      <div
+        style="
+          background-color: #fff;
+          padding: 5px;
+          border-radius: 5px;
+          box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        "
+      >
+       
+
+        <h1
+          style="
+            width: 100%;
+            text-align: center;
+            color: #333;
+            font-size: 20px;
+            margin-bottom: 20px;
+          "
+        >
+          <%= data.title %>
+        </h1>
+
+        <p>Dear <%= data.firstName %>,</p>
+        <p>
+          Please be informed that you are about to login to your BlackDiamond account
+        </p>
+
+        <p>
+          Please use the OTP to sign in to your account. (Display OTP) Kindly
+          note that the OTP expires in 10 mins.
+        </p>
+
+        <div style="text-align: center; padding: 10px 0">
+          <a
+          href="<%= data.link %>"
+            style="
+              font-size: 14px;
+              color: #333;
+              background-color: #e7eae2;
+              padding: 10px;
+              font-weight: bold;
+              border-radius: 5px;
+              display: inline-block;
+            "
+          >
+            <%= data.link %>
+        </a>
+        </div>
+
+        <p>
+          If you have any questions or unauthorized activities on your account,
+          please contact us immediately at
+          <a
+            href="mailto:support@BlackDiamond.com"
+            style="color: #007bff; text-decoration: none"
+            >support@BlackDiamond.com</a
+          >.
+        </p>
+
+        <p>Thank you for choosing BlackDiamond.</p>
+        <p>Regards,</p>
+
+     
+
+        <footer
+          style="
+            background-color: #315b12;
+            color: #fff;
+            text-align: center;
+            padding: 15px 5px;
+            border-radius: 8px;
+          "
+        >
+         
+          
+          <p style="margin: 5px 0; text-align: center">
+            Email: <span style="font-weight: bold">support@BlackDiamond.com</span>
+          </p>
+          <p style="margin: 5px 0; text-align: center">
+            Website: <span style="font-weight: bold">www.BlackDiamond.com</span>
+          </p>
+
+       
+        </footer>
+      </div>
+    </div>
+  </body>
+</html>

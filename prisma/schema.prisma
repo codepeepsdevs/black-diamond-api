@@ -1,0 +1,347 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  user
+  admin
+}
+
+// enum TicketLevelType {
+//   DIAMOND
+//   GENERAL
+//   VIP
+// }
+
+enum OrderStatus {
+  PENDING
+  COMPLETED
+  CANCELED
+}
+
+enum PaymentStatus {
+  PENDING // payment initiated but not completed
+  SUCCESSFUL // payment successful
+  FAILED // payment failed
+  PROCESSING // payment is being processed by the payment gateway
+}
+
+enum Gender {
+  Male
+  Female
+  Other
+}
+
+enum AuthMethod {
+  FACEBOOK
+  GOOGLE
+  EMAIL
+}
+
+enum EventStatus {
+  UPCOMING
+  PAST
+}
+
+enum LocationType {
+  ONLINE_EVENT
+  VENUE
+  TO_BE_ANNOUNCED
+}
+
+model User {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  email          String   @unique
+  password       String
+  firstname      String?
+  lastname       String?
+  phone          String?
+  imgUrl         String?
+  emailConfirmed Boolean  @default(false)
+  role           UserRole @default(user)
+
+  // Password reset fields
+  resetToken       String?
+  resetTokenExpiry DateTime?
+
+  // Authentication and authorization fields
+  refreshToken String?
+  authMethod   AuthMethod
+  confirmToken String?
+
+  // One-to-one relationship with Address
+  address   Address? @relation("UserAddress", fields: [addressId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  addressId String?  @unique @db.ObjectId
+
+  // One-to-one relationship with BillingInfo
+  billingInfo   BillingInfo? @relation("UserBillingInfo", fields: [billingInfoId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  billingInfoId String?      @unique @db.ObjectId
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  order     Order[]
+}
+
+model ContactUs {
+  id         String  @id @default(auto()) @map("_id") @db.ObjectId
+  name       String
+  subject    String
+  email      String
+  message    String
+  attachment String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Subscriber {
+  id    String @id @default(auto()) @map("_id") @db.ObjectId
+  email String @unique
+
+  name              String
+  subscriberListIds String[]         @db.ObjectId
+  subscriberList    SubscriberList[] @relation(fields: [subscriberListIds], references: [id])
+
+  isSubscribed Boolean @default(false)
+
+  subscribedAt   DateTime  @default(now())
+  unsubscribedAt DateTime?
+}
+
+model SubscriberList {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+
+  name String @unique
+
+  subscriberIds String[]     @db.ObjectId
+  subscribers   Subscriber[] @relation(fields: [subscriberIds], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model NewsletterSubscription {
+  id    String @id @default(auto()) @map("_id") @db.ObjectId
+  email String @unique
+
+  isSubscribed Boolean @default(false)
+
+  subscribedAt   DateTime  @default(now())
+  unsubscribedAt DateTime?
+}
+
+model Address {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+
+  phone    String?
+  address1 String?
+  address2 String?
+  city     String?
+  country  String?
+  zipCode  String?
+  state    String?
+
+  user User? @relation("UserAddress")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model BillingInfo {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+
+  phone    String?
+  address1 String?
+  address2 String?
+  city     String?
+  country  String?
+  zipCode  String?
+  state    String?
+
+  user User? @relation("UserBillingInfo")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Event {
+  id          String  @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  description String?
+
+  highlights String[] @default([]) // The images from past events
+
+  images                  String[]      @default([])
+  coverImage              String
+  location                String
+  locationType            LocationType? @default(VENUE)
+  startTime               DateTime
+  endTime                 DateTime
+  summary                 String
+  // startDateOfSale         DateTime
+  // endDateOfSale           DateTime
+  ticketTypes             TicketType[]
+  isPublished             Boolean       @default(false)
+  // eventBriteUrl           String
+  eventStatus             EventStatus   @default(UPCOMING) // TODO: Tell the designer (or do it yourself) to include a place where event status can be updated in the dashboard
+  ticketSalesEndMessage   String? // These two (displayTicketsRemainder) would be a field in the update event details controller/service or endpoint
+  displayTicketsRemainder Boolean       @default(false)
+
+  refundPolicy String?
+
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  order     Order[]
+  addons    EventAddons[]
+}
+
+model TicketType {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  name      String
+  quantity  Int
+  startDate DateTime
+  endDate   DateTime
+  price     Float // A ticket price of zero means a free ticket type..
+
+  eventId String @db.ObjectId
+  event   Event  @relation(fields: [eventId], references: [id])
+
+  promoCodeIds String[]    @db.ObjectId
+  promoCodes   PromoCode[] @relation(fields: [promoCodeIds], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tickets Ticket[]
+}
+
+model PromoCode {
+  id                       String   @id @default(auto()) @map("_id") @db.ObjectId
+  name                     String
+  key                      String   @unique
+  limit                    Int
+  absoluteDiscountAmount   Float?   @default(0)
+  percentageDiscountAmount Float?   @default(0)
+  promoStartDate           DateTime
+  promoEndDate             DateTime
+
+  ticketTypeIds String[]     @db.ObjectId
+  ticketTypes   TicketType[] @relation(fields: [ticketTypeIds], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  order     Order[]
+}
+
+model Order {
+  id            String        @id @default(auto()) @map("_id") @db.ObjectId
+  user          User?         @relation(fields: [userId], references: [id])
+  userId        String?       @db.ObjectId
+  tickets       Ticket[] // One-to-many relationship with Ticket
+  // totalAmount Float // Total amount for the order
+  status        OrderStatus   @default(PENDING) // Status of the order
+  paymentStatus PaymentStatus @default(PENDING)
+  paymentId     String?
+  amountPaid    Float?        @default(0)
+  sessionId     String?
+
+  // Contact details
+  firstName String?
+  lastName  String?
+  email     String?
+  phone     String?
+
+  promocodeId String?    @db.ObjectId
+  promocode   PromoCode? @relation(fields: [promocodeId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  addonOrder AddonOrder[]
+
+  eventId String @db.ObjectId
+  event   Event  @relation(fields: [eventId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AddonOrder {
+  id       String      @id @default(auto()) @map("_id") @db.ObjectId
+  addon    EventAddons @relation(fields: [addonId], references: [id])
+  quantity Float
+  addonId  String      @db.ObjectId
+  orderId  String?     @db.ObjectId
+  order    Order?      @relation(fields: [orderId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Ticket {
+  id           String     @id @default(auto()) @map("_id") @db.ObjectId
+  checkinCode  String?    @unique
+  order        Order      @relation(fields: [orderId], references: [id])
+  orderId      String     @db.ObjectId
+  ticketType   TicketType @relation(fields: [ticketTypeId], references: [id])
+  ticketTypeId String     @db.ObjectId
+  // unitPrice    Float
+  // totalPrice   Float
+
+  // details filled in ticket
+  firstName   String?
+  lastName    String?
+  email       String?
+  phone       String?
+  gender      Gender?
+  promoCodeId String? @db.ObjectId // TODO: before applying a promocode to a ticket verify that it belongs to the ticket both in the frontend and in the backend
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model EventAddons {
+  id                      String   @id @default(auto()) @map("_id") @db.ObjectId
+  name                    String
+  totalQuantity           Int
+  description             String
+  image                   String
+  minimumQuantityPerOrder Int
+  maximumQuantityPerOrder Int
+  startTime               DateTime // TODO: What does event add start and end time mean?
+  endTime                 DateTime
+  price                   Float
+  // showSaleAndStatusOnCheckout Boolean  @default(false)
+  // visible                     Boolean
+  // eTicket                     Boolean
+  // willCall                    Boolean
+
+  eventId String @db.ObjectId
+  event   Event  @relation(fields: [eventId], references: [id])
+
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  addonOrder AddonOrder[]
+}
+
+// promoter
+model Promoter {
+  id              String  @id @default(auto()) @map("_id") @db.ObjectId
+  firstName       String
+  lastName        String
+  email           String  @unique
+  phoneNumber     String
+  gender          Gender
+  location        String
+  tiktokHandle    String?
+  instagramHandle String?
+  twitterHandle   String?
+  facebookHandle  String?
+  description     String?
+  note            String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+  </head>
+  <body style="font-family: Arial, sans-serif; margin: 0; padding: 0">
+    <div
+      style="
+        max-width: 600px;
+        margin: 0 auto;
+        padding: 20px;
+        border: 1px solid #e0e0e0;
+      "
+    >
+      <header style="text-align: center; padding-bottom: 20px">
+        <img
+          src="https://res.cloudinary.com/do8zvgqpg/raw/upload/v1721772208/assets/logo/Layer_1.png"
+          alt="BlackDiamond"
+          style="max-width: 150px"
+        />
+      </header>
+
+      <!-- section -->
+      <div
+        style="
+          background-color: #fff;
+          padding: 5px;
+          border-radius: 5px;
+          box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        "
+      >
+        <h1 style="color: #333; font-size: 20px; margin-bottom: 20px">
+          <%= data.title %> Notification
+        </h1>
+        <p>Hello <%= data.firstName %>,</p>
+        <p>The following transaction has been made on your account:</p>
+
+        <div style="text-align: center; padding: 5px 0">
+          <p
+            style="
+              font-size: 24px;
+              color: #333;
+              background-color: #e7eae2;
+              padding: 10px;
+              font-weight: bold;
+              border-radius: 5px;
+              display: inline-block;
+            "
+          >
+            ₦<%= data.amount %>
+          </p>
+        </div>
+
+        <table
+          style="width: 100%; margin-bottom: 10px; border-collapse: collapse"
+        >
+          <tr>
+            <td>
+              <strong>Transaction Type:</strong>
+            </td>
+            <td><%= data.transactionType %></td>
+          </tr>
+          <tr>
+            <td>
+              <strong>Amount:</strong>
+            </td>
+            <td>₦<%= data.amount %></td>
+          </tr>
+          <tr>
+            <td>
+              <strong>Transaction Date:</strong>
+            </td>
+            <td><%= data.transactionDate %></td>
+          </tr>
+          <tr>
+            <td>
+              <strong>Reference:</strong>
+            </td>
+            <td><%= data.reference %></td>
+          </tr>
+        </table>
+
+        <p>
+          If you have any questions or unauthorized activities on your account,
+          please contact us immediately at
+          <a
+            href="mailto:support@BlackDiamond.com"
+            style="color: #007bff; text-decoration: none"
+            >support@BlackDiamond.com</a
+          >.
+        </p>
+
+        <p>Thank you for choosing BlackDiamond.</p>
+
+        <p>Tina from BlackDiamond 🥰.</p>
+
+        <footer
+          style="
+            background-color: #315b12;
+            color: #fff;
+            text-align: center;
+            padding: 15px 5px;
+            border-radius: 8px;
+          "
+        >
+          <div style="margin-bottom: 20px">
+            <a
+              href="https://www.linkedin.com"
+              style="margin: 0 10px; text-decoration: none"
+            >
+              <img
+                src="https://res.cloudinary.com/do8zvgqpg/raw/upload/v1721772838/assets/linkeldn/Vector.png"
+                alt="LinkedIn"
+                style="width: 24px; height: 24px"
+              />
+            </a>
+            <a
+              href="https://www.facebook.com"
+              style="margin: 0 10px; text-decoration: none"
+            >
+              <img
+                src="https://res.cloudinary.com/do8zvgqpg/raw/upload/v1721772946/assets/facebook/Vector.png"
+                alt="Facebook"
+                style="width: 24px; height: 24px"
+              />
+            </a>
+            <a
+              href="https://www.instagram.com"
+              style="margin: 0 10px; text-decoration: none"
+            >
+              <img
+                src="https://res.cloudinary.com/do8zvgqpg/raw/upload/v1721772881/assets/instagram/Vector%20%281%29.png"
+                alt="Instagram"
+                style="width: 24px; height: 24px"
+              />
+            </a>
+            <a
+              href="https://www.twitter.com"
+              style="margin: 0 10px; text-decoration: none"
+            >
+              <img
+                src="https://res.cloudinary.com/do8zvgqpg/raw/upload/v1721772987/assets/twitter/Subtract.png"
+                alt="Twitter"
+                style="width: 24px; height: 24px"
+              />
+            </a>
+          </div>
+          
+          <p style="margin: 5px 0; text-align: center">
+            Email: <span style="font-weight: bold">support@BlackDiamond.com</span>
+          </p>
+          <p style="margin: 5px 0; text-align: center">
+            Website: <span style="font-weight: bold">www.BlackDiamond.com</span>
+          </p>
+
+          <div>
+            <a
+              href="https://play.google.com"
+              style="margin: 0 5px; text-decoration: none"
+            >
+              <img
+                src="https://res.cloudinary.com/do8zvgqpg/raw/upload/v1721773096/assets/googleplay/google%20play.png"
+                alt="Google Play"
+                style="width: 100px"
+              />
+            </a>
+            <a
+              href="https://www.apple.com/app-store/"
+              style="margin: 0 5px; text-decoration: none"
+            >
+              <img
+                src="https://res.cloudinary.com/do8zvgqpg/raw/upload/v1721773048/assets/appstore/app%20store.png"
+                alt="App Store"
+                style="width: 100px"
+              />
+            </a>
+          </div>
+        </footer>
+      </div>
+    </div>
+  </body>
+</html>

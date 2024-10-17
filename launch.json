@@ -1,0 +1,15 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+      {
+        "name": "Stripe: Webhooks listen",
+        "type": "stripe",
+        "request": "launch",
+        "command": "listen",
+        "forwardTo": "http://localhost:3000",
+        "forwardConnectTo": "http://localhost:3000",
+        "events": ["payment_intent.succeeded", "payment_intent.canceled"],
+        "skipVerify": true
+      }
+    ]
+  }

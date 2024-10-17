@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <style>
+    body {
+      background-color: #333333;
+    }
+
+    .container {
+      padding: 16px;
+      max-width: 720px;
+      margin: 32px auto;
+      background-color: black;
+    }
+
+    .password-link {
+      font-weight: 700;
+      color: black;
+      padding: 12px 16px;
+      text-align: center;
+      display: block;
+      margin: auto;
+      background-color: #c0c0c0;
+      box-shadow: 0px 2px 4px -2px #000000;
+      text-decoration: none;
+      max-width: fit-content;
+
+      box-shadow: 0px 4px 6px -1px #000000;
+    }
+
+    p {
+      padding: 8px 0px;
+      color: #ffffff;
+    }
+
+    .logo {
+      width: 82px;
+      height: 82px;
+    }
+  </style>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Account activation email</title>
+  </head>
+  <body>
+    <div class="container">
+      <p>Welcome to Black Diamond Entertainment!</p>
+      <p>Set a password for your account, and you'll be good to go.</p>
+      <p style="margin: 24px 0px">
+        <a href="<%= completeSignupLink %>" class="password-link"
+          >SET A PASSWORD</a
+        >
+      </p>
+      <p>
+        Someone tried to create an account on Black Diamond with this email
+        address. If this wasn't you, ignore this email.
+      </p>
+      <img
+        src="https://res.cloudinary.com/dxocehutm/image/upload/v1726867648/logo_buu5yj.png"
+        class="logo"
+      />
+      <p>Privacy Policy</p>
+      <p>Best regards,</p>
+      <p>© 2024 BLACK DIAMOND</p>
+    </div>
+  </body>
+</html>
