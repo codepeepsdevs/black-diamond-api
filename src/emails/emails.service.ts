@@ -24,7 +24,7 @@ export class EmailsService {
     });
 
     const mailOptions = {
-      from: 'BlackDiamond <kyilaxtech@gmail.com>',
+      from: 'BlackDiamond <support@eventsbyblackdiamond.com>',
       to: user.email,
       subject: 'Verify Your Registration',
       html: renderedEmail,
@@ -50,7 +50,7 @@ export class EmailsService {
     });
 
     const mailOptions = {
-      from: 'BlackDiamond <kyilaxtech@gmail.com>',
+      from: 'BlackDiamond <support@eventsbyblackdiamond.com>',
       to: user.email,
       subject: 'Registration Completed',
       html: renderedEmail,
@@ -78,7 +78,7 @@ export class EmailsService {
       });
 
       await transporter.sendMail({
-        from: 'BlackDiamond <kyilaxtech@gmail.com>',
+        from: 'BlackDiamond <support@eventsbyblackdiamond.com>',
         to: user.email,
         subject: 'Welcome toBlackDiamond',
         html: renderedEmail,
@@ -104,7 +104,7 @@ export class EmailsService {
   //     });
 
   //     await transporter.sendMail({
-  //       from: 'BlackDiamond <kyilaxtech@gmail.com>',
+  //       from: 'BlackDiamond <support@eventsbyblackdiamond.com>',
   //       to: user?.email,
   //       subject: 'Confirm Your Email Address for BlackDiamond Registration',
   //       html: renderedEmail,
@@ -134,7 +134,7 @@ export class EmailsService {
       });
 
       await transporter.sendMail({
-        from: 'BlackDiamond <kyilaxtech@gmail.com>',
+        from: 'BlackDiamond <support@eventsbyblackdiamond.com>',
         to: email,
         subject: 'Password Reset Request Confirmation',
         html: renderedEmail,
@@ -159,7 +159,7 @@ export class EmailsService {
       });
 
       await transporter.sendMail({
-        from: 'BlackDiamond <kyilaxtech@gmail.com>',
+        from: 'BlackDiamond <support@eventsbyblackdiamond.com>',
         to: email,
         subject: 'Password Successfully Changed',
         html: renderedEmail,
@@ -187,7 +187,7 @@ export class EmailsService {
       });
 
       await transporter.sendMail({
-        from: 'BlackDiamond <kyilaxtech@gmail.com>',
+        from: 'BlackDiamond <support@eventsbyblackdiamond.com>',
         to: email,
         subject: 'Complete your signup process',
         html: renderedEmail,
@@ -220,7 +220,7 @@ export class EmailsService {
       const renderedEmail = ejs.render(templateFile, data);
 
       await transporter.sendMail({
-        from: 'BlackDiamond <kyilaxtech@gmail.com>',
+        from: 'BlackDiamond <support@eventsbyblackdiamond.com>',
         to: email,
         subject: 'Your order payment is complete! View tickets',
         html: renderedEmail,
@@ -255,7 +255,7 @@ export class EmailsService {
       const renderedEmail = ejs.render(templateFile, data);
 
       await transporter.sendMail({
-        from: 'BlackDiamond <kyilaxtech@gmail.com>',
+        from: 'BlackDiamond <support@eventsbyblackdiamond.com>',
         to: email,
         subject: 'Your order payment is complete! View tickets',
         html: renderedEmail,
@@ -283,7 +283,7 @@ export class EmailsService {
 
       await transporter.sendMail(
         {
-          from: 'BlackDiamond <kyilaxtech@gmail.com>',
+          from: 'BlackDiamond <support@eventsbyblackdiamond.com>',
           to: email,
           subject: subject,
           html: renderedEmail,
