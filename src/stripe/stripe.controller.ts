@@ -69,7 +69,7 @@ export class StripeController {
         orderId,
         'SUCCESSFUL',
         paymentIntent.id,
-        paymentIntent.amount_received,
+        paymentIntent.amount_received / 100, // convert from cent to dollarss
       );
 
       // TODO: Send email for them to fill in their ticket details

@@ -15,7 +15,7 @@ import {
   GetRevenueQueryDto,
   UserOrderPaginationDto,
 } from './dto/orders.dto';
-import { PaginationQueryDto } from 'src/shared/dto/pagination-query.dto';
+// import { PaginationQueryDto } from 'src/shared/dto/pagination-query.dto';
 import { Order, User } from '@prisma/client';
 import { StripeService } from 'src/stripe/stripe.service';
 import { EmailsService } from 'src/emails/emails.service';
@@ -352,6 +352,7 @@ export class OrdersService {
     const { page: _page, limit: _limit, eventStatus } = paginationQuery;
 
     const { skip, take } = getPagination({ _page, _limit });
+    console.log(skip, take);
     const userOrders = await this.prisma.order.findMany({
       where: {
         userId,
@@ -386,10 +387,11 @@ export class OrdersService {
 
   async getUserUpcomingEventsOrders(
     userId: User['id'],
-    paginationQuery: PaginationQueryDto,
+    paginationQuery: UserOrderPaginationDto,
   ) {
     const { page: _page, limit: _limit } = paginationQuery;
     const { skip, take } = getPagination({ _page, _limit });
+    console.log(skip, take);
     const userOrders = await this.prisma.order.findMany({
       where: {
         userId,
@@ -414,16 +416,28 @@ export class OrdersService {
       skip,
       take,
     });
+    const orderCount = await this.prisma.order.count({
+      where: {
+        userId,
+        AND: {
+          event: {
+            eventStatus: 'UPCOMING',
+          },
+          paymentStatus: 'SUCCESSFUL',
+        },
+      },
+    });
 
-    return userOrders;
+    return { userOrders, orderCount };
   }
 
   async getUserPastEventsOrders(
     userId: User['id'],
-    paginationQuery: PaginationQueryDto,
+    paginationQuery: UserOrderPaginationDto,
   ) {
     const { page: _page, limit: _limit } = paginationQuery;
     const { skip, take } = getPagination({ _page, _limit });
+    console.log(skip, take);
     try {
       const userOrders = await this.prisma.order.findMany({
         where: {
@@ -450,7 +464,19 @@ export class OrdersService {
         take,
       });
 
-      return userOrders;
+      const orderCount = await this.prisma.order.count({
+        where: {
+          userId,
+          AND: {
+            event: {
+              eventStatus: 'PAST',
+            },
+            paymentStatus: 'SUCCESSFUL',
+          },
+        },
+      });
+
+      return { userOrders, orderCount };
     } catch (e) {
       console.log(e);
       throw new InternalServerErrorException(

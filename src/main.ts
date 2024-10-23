@@ -26,8 +26,7 @@ async function bootstrap() {
     origin: [
       'http://localhost:3000',
       'http://localhost:3001',
-      'https://www.eventsbyblackdiamond.com',
-      'https://eventsbyblackdiamond.com',
+      'https://blackdiamond-client.vercel.app',
     ],
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
     allowedHeaders: ['Content-Type', 'Authorization'],
@@ -92,4 +91,3 @@ bootstrap();
 //   await app.listen(5000);
 // }
 // bootstrap();
-

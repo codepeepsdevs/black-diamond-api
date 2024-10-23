@@ -20,7 +20,7 @@ RUN npx prisma generate
 RUN yarn build
 
 # Expose port 3000 for the backend application
-EXPOSE 5000
+EXPOSE 3000
 
 # Start the application
 CMD ["yarn", "start:prod"]
