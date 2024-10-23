@@ -21,7 +21,7 @@ import {
 import { Roles } from 'src/auth/guards/roles.decorator';
 import { RolesGuard } from 'src/auth/guards/roles.guard';
 import JwtAuthenticationGuard from 'src/auth/guards/jwt-authentication.guard';
-import { PaginationQueryDto } from 'src/shared/dto/pagination-query.dto';
+// import { PaginationQueryDto } from 'src/shared/dto/pagination-query.dto';
 import RequestWithUser from 'src/auth/types/requestWithUser.interface';
 import { UserRole } from '@prisma/client';
 import { JwtService } from '@nestjs/jwt';
@@ -146,7 +146,7 @@ export class OrdersController {
   @Roles()
   @Get('user-upcoming-events-orders')
   async getUserUpcomingEventsOrders(
-    @Query() paginationQuery: PaginationQueryDto,
+    @Query() paginationQuery: UserOrderPaginationDto,
     @Req() req: RequestWithUser,
   ) {
     const userId = req.user.id;
@@ -160,7 +160,7 @@ export class OrdersController {
   @Roles()
   @Get('user-past-events-orders')
   async getUserPastEventsOrders(
-    @Query() paginationQuery: PaginationQueryDto,
+    @Query() paginationQuery: UserOrderPaginationDto,
     @Req() req: RequestWithUser,
   ) {
     const userId = req.user.id;

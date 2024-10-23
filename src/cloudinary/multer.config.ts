@@ -2,8 +2,10 @@ import { MulterOptions } from '@nestjs/platform-express/multer/interfaces/multer
 import { CloudinaryStorage } from 'multer-storage-cloudinary';
 import { cloudinary } from './cloudinary.config';
 import { Request } from 'express';
-import { CLOUDINARY_FOLDER_NAME } from 'src/constants';
+import { DRIVER_CLOUDINARY_FOLDER_NAME } from 'src/constants';
 import { memoryStorage } from 'multer';
+
+// TODO: !!!!! Change DRIVER_CLOUDINARY_FOLDER_NAME to something gotten from config or .env
 
 // Configure Cloudinary storage
 const cloudinaryStorage = new CloudinaryStorage({
@@ -12,7 +14,7 @@ const cloudinaryStorage = new CloudinaryStorage({
     public_id: (req: Request, file: Express.Multer.File) => {
       return `${Date.now()}_${file.originalname.split('.')[0]}`;
     },
-    folder: process.env[CLOUDINARY_FOLDER_NAME], // Folder in Cloudinary
+    folder: process.env[DRIVER_CLOUDINARY_FOLDER_NAME], // Folder in Cloudinary
     allowed_formats: ['jpg', 'jpeg', 'png'], // Allowed file formats
     // transformation: [{ width: 500, height: 500, crop: 'limit' }], // Optional transformations
   } as CloudinaryStorage['params'],
@@ -47,10 +49,9 @@ export const multerCSVOptions: MulterOptions = {
 //       public_id: (req: Request, file: Express.Multer.File) => {
 //         return `${Date.now()}_${file.originalname.split('.')[0]}`;
 //       },
-//       folder: process.env[CLOUDINARY_FOLDER_NAME], // Folder in Cloudinary
+//       folder: process.env[DRIVER_CLOUDINARY_FOLDER_NAME], // Folder in Cloudinary
 //       allowed_formats: ['.csv'], // Allowed file formats
 //       // transformation: [{ width: 500, height: 500, crop: 'limit' }], // Optional transformations
 //     } as CloudinaryStorage['params'],
 //   },
 // };
-
