@@ -222,7 +222,7 @@ export class EmailsService {
       await transporter.sendMail({
         from: 'BlackDiamond <support@eventsbyblackdiamond.com>',
         to: email,
-        subject: 'Your order payment is complete! View tickets',
+        subject: 'Your order payment has been confirmed! View tickets',
         html: renderedEmail,
       });
 
@@ -257,7 +257,7 @@ export class EmailsService {
       await transporter.sendMail({
         from: 'BlackDiamond <support@eventsbyblackdiamond.com>',
         to: email,
-        subject: 'Your order payment is complete! View tickets',
+        subject: 'Your order has been received!',
         html: renderedEmail,
       });
 
@@ -303,4 +303,3 @@ export class EmailsService {
     }
   }
 }
-
