@@ -24,6 +24,8 @@ import {
   getEventStatus,
 } from 'src/utils/date-formatter';
 
+export type EventStatus = { eventStatus: 'UPCOMING' | 'PAST' };
+
 @Injectable()
 export class EventsService {
   constructor(private prisma: PrismaService) {}
@@ -137,8 +139,8 @@ export class EventsService {
     if (!event) {
       throw new NotFoundException('Event not found');
     }
-
-    return event;
+    event['eventStatus'] = getEventStatus(event.startTime);
+    return event as typeof event & EventStatus;
   }
 
   async getPromocode(dto: GetPromocodeDto) {
@@ -280,6 +282,11 @@ export class EventsService {
         },
         include: {
           promoCodes: true,
+          _count: {
+            select: {
+              tickets: true,
+            },
+          },
         },
         orderBy: {
           createdAt: 'desc',

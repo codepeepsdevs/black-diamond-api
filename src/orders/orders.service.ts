@@ -37,6 +37,7 @@ import {
   getCurrentNewYorkDateTimeInUTC,
   getEventStatus,
 } from 'src/utils/date-formatter';
+import { EventsService } from 'src/events/events.service';
 
 const nanoid = customAlphabet('1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ', 12);
 
@@ -49,47 +50,18 @@ export class OrdersService {
     private readonly configService: ConfigService,
     private readonly jwtService: JwtService,
     private readonly userService: UsersService,
+    private readonly eventService: EventsService,
   ) {}
-
-  // async createOrder(userId: string, dto: CreateOrderDto) {
-  //   const { orderItems } = dto;
-
-  //   const orderItemsData = await Promise.all(
-  //     orderItems.map(async (item) => {
-  //       const ticketType = await this.prisma.ticketType.findUnique({
-  //         where: { id: item.ticketTypeId },
-  //       });
-
-  //       return {
-  //         ticketTypeId: item.ticketTypeId,
-  //         quantity: item.quantity,
-  //         unitPrice: ticketType.price,
-  //         totalPrice: ticketType.price * item.quantity,
-  //       };
-  //     }),
-  //   );
-
-  //   const totalAmount = orderItemsData.reduce((sum, item) => {
-  //     return sum + item.totalPrice;
-  //   }, 0);
-
-  //   const order = await this.prisma.order.create({
-  //     data: {
-  //       userId,
-  //       orderItems: {
-  //         create: orderItemsData,
-  //       },
-  //       totalAmount,
-  //     },
-  //     include: { orderItems: true },
-  //   });
-
-  //   return order;
-  // }
 
   async createOrder(dto: CreateOrderDto, token: string | undefined) {
     let user: User | null = null;
     let newAccount = false;
+    const event = await this.eventService.getEvent(dto.eventId);
+    if (event.eventStatus === 'PAST') {
+      throw new InternalServerErrorException(
+        'Event is in the past, cannot book an event in the past',
+      );
+    }
     return await this.prisma.$transaction(
       async (prisma) => {
         if (token) {
@@ -155,10 +127,31 @@ export class OrdersService {
         const addonsOrders: { addonId: string; quantity: number }[] = [];
 
         // TODO: Handle ticket max sales
-        dto.ticketOrders.forEach((ticket) => {
-          for (let i = 0; i < ticket.quantity; i++) {
+
+        dto.ticketOrders.forEach(async (ticketTypeOrder) => {
+          const { quantity: totalQuantity, name: ticketName } =
+            event.ticketTypes.find(
+              (ticketType) => ticketType.id === ticketTypeOrder.ticketTypeId,
+            );
+          // get the number of tickets for a tickettype of this event that has already been successfully paid for
+          const soldQuantity = await this.prisma.ticket.count({
+            where: {
+              ticketTypeId: ticketTypeOrder.ticketTypeId,
+              order: {
+                paymentStatus: 'SUCCESSFUL',
+                eventId: dto.eventId,
+              },
+            },
+          });
+          const quantityAvailable = totalQuantity - soldQuantity;
+          if (ticketTypeOrder.quantity < quantityAvailable) {
+            throw new InternalServerErrorException(
+              `Unable to place order, only ${quantityAvailable} slot(s) are available for ${ticketName} ticket type`,
+            );
+          }
+          for (let i = 0; i < ticketTypeOrder.quantity; i++) {
             allTicketOrders.push({
-              ticketTypeId: ticket.ticketTypeId,
+              ticketTypeId: ticketTypeOrder.ticketTypeId,
             });
           }
         });
@@ -208,11 +201,6 @@ export class OrdersService {
             },
           });
 
-          // After placing the order, create the payment intent
-          // const { clientSecret } = await this.stripeService.checkout(dto);
-          // const newOrder = await this.getOrder(order.id);
-
-          // TODO: Send email for the user to complete account creation
           if (newAccount) {
             const emailToken = await this.jwtService.signAsync(
               {

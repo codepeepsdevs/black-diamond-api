@@ -14,8 +14,6 @@ import { StripeModule } from './stripe/stripe.module';
 // import { LoggerModule } from 'nestjs-pino';
 import { SubscriberListModule } from './subscriber-list/subscriber-list.module';
 import { SubscriberModule } from './subscriber/subscriber.module';
-import { ServeStaticModule } from '@nestjs/serve-static';
-import { join } from 'path';
 
 @Module({
   imports: [
@@ -58,4 +56,3 @@ import { join } from 'path';
   providers: [AppService, PrismaService],
 })
 export class AppModule {}
-
