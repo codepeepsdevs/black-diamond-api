@@ -33,6 +33,10 @@ import * as dateFns from 'date-fns';
 import { getPagination } from 'src/utils/get-pagination';
 import { DateRangeQueryDto } from 'src/shared/dto/date-range-query.dto';
 import { customAlphabet } from 'nanoid';
+import {
+  getCurrentNewYorkDateTimeInUTC,
+  getEventStatus,
+} from 'src/utils/date-formatter';
 
 const nanoid = customAlphabet('1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ', 12);
 
@@ -245,18 +249,22 @@ export class OrdersService {
     const { page: _page, limit: _limit, eventStatus } = paginationQuery;
 
     const { skip, take } = getPagination({ _page, _limit });
-    console.log(skip, take);
+    const nowInNewYorkUTC = getCurrentNewYorkDateTimeInUTC();
     const userOrders = await this.prisma.order.findMany({
       where: {
         userId,
         AND: {
           event: {
-            eventStatus:
+            startTime:
               eventStatus === 'all'
                 ? undefined
                 : eventStatus === 'past'
-                  ? 'PAST'
-                  : 'UPCOMING',
+                  ? {
+                      lt: nowInNewYorkUTC,
+                    }
+                  : {
+                      gt: nowInNewYorkUTC,
+                    },
           },
         },
       },
@@ -284,13 +292,15 @@ export class OrdersService {
   ) {
     const { page: _page, limit: _limit } = paginationQuery;
     const { skip, take } = getPagination({ _page, _limit });
-    console.log(skip, take);
+    const nowInNewYorkUTC = getCurrentNewYorkDateTimeInUTC();
     const userOrders = await this.prisma.order.findMany({
       where: {
         userId,
         AND: {
           event: {
-            eventStatus: 'UPCOMING',
+            startTime: {
+              gt: nowInNewYorkUTC,
+            },
           },
           paymentStatus: 'SUCCESSFUL',
         },
@@ -314,7 +324,9 @@ export class OrdersService {
         userId,
         AND: {
           event: {
-            eventStatus: 'UPCOMING',
+            startTime: {
+              gt: nowInNewYorkUTC,
+            },
           },
           paymentStatus: 'SUCCESSFUL',
         },
@@ -330,14 +342,16 @@ export class OrdersService {
   ) {
     const { page: _page, limit: _limit } = paginationQuery;
     const { skip, take } = getPagination({ _page, _limit });
-    console.log(skip, take);
+    const nowInNewYorkUTC = getCurrentNewYorkDateTimeInUTC();
     try {
       const userOrders = await this.prisma.order.findMany({
         where: {
           userId,
           AND: {
             event: {
-              eventStatus: 'PAST',
+              startTime: {
+                lt: nowInNewYorkUTC,
+              },
             },
             paymentStatus: 'SUCCESSFUL',
           },
@@ -362,7 +376,9 @@ export class OrdersService {
           userId,
           AND: {
             event: {
-              eventStatus: 'PAST',
+              startTime: {
+                lt: nowInNewYorkUTC,
+              },
             },
             paymentStatus: 'SUCCESSFUL',
           },
@@ -397,6 +413,7 @@ export class OrdersService {
       throw new NotFoundException('Order not found');
     }
 
+    order.event['eventStatus'] = getEventStatus(order.event.startTime);
     return order;
   }
 
@@ -409,15 +426,20 @@ export class OrdersService {
       startDate,
     } = query;
     const { skip, take } = getPagination({ _page, _limit });
+    const nowInNewYorkUTC = getCurrentNewYorkDateTimeInUTC();
     try {
       const orders = await this.prisma.order.findMany({
         where: {
           event: {
-            eventStatus:
+            startTime:
               eventStatus === 'past'
-                ? 'PAST'
+                ? {
+                    lt: nowInNewYorkUTC,
+                  }
                 : eventStatus === 'upcoming'
-                  ? 'UPCOMING'
+                  ? {
+                      gt: nowInNewYorkUTC,
+                    }
                   : undefined,
           },
           createdAt: {

@@ -43,10 +43,10 @@ enum AuthMethod {
   EMAIL
 }
 
-enum EventStatus {
-  UPCOMING
-  PAST
-}
+// enum EventStatus {
+//   UPCOMING
+//   PAST
+// }
 
 enum LocationType {
   ONLINE_EVENT
@@ -188,7 +188,7 @@ model Event {
   ticketTypes             TicketType[]
   isPublished             Boolean       @default(false)
   eventBriteURL           String?
-  eventStatus             EventStatus   @default(UPCOMING) // TODO: Tell the designer (or do it yourself) to include a place where event status can be updated in the dashboard
+  // eventStatus             EventStatus   @default(UPCOMING)
   ticketSalesEndMessage   String? // These two (displayTicketsRemainder) would be a field in the update event details controller/service or endpoint
   displayTicketsRemainder Boolean       @default(false)
 

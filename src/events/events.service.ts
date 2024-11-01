@@ -19,6 +19,10 @@ import { Event, TicketType } from '@prisma/client';
 import { PaginationQueryDto } from 'src/shared/dto/pagination-query.dto';
 import { EventStatusPaginationQueryDto as EventsPaginationQueryDto } from './dto/events.dto';
 import { getPagination } from 'src/utils/get-pagination';
+import {
+  getCurrentNewYorkDateTimeInUTC,
+  getEventStatus,
+} from 'src/utils/date-formatter';
 
 @Injectable()
 export class EventsService {
@@ -180,17 +184,23 @@ export class EventsService {
       } = paginationQuery;
 
       const { skip, take } = getPagination({ _page, _limit });
+      const nowInNewYorkUTC = getCurrentNewYorkDateTimeInUTC();
 
       const events = await this.prisma.event.findMany({
         where: {
           name: {
             contains: search,
+            mode: 'insensitive',
           },
-          eventStatus:
+          startTime:
             eventStatus === 'past'
-              ? 'PAST'
+              ? {
+                  lt: nowInNewYorkUTC,
+                }
               : eventStatus === 'upcoming'
-                ? 'UPCOMING'
+                ? {
+                    gt: nowInNewYorkUTC,
+                  }
                 : undefined,
         },
         include: {
@@ -212,12 +222,17 @@ export class EventsService {
         where: {
           name: {
             contains: search,
+            mode: 'insensitive',
           },
-          eventStatus:
+          startTime:
             eventStatus === 'past'
-              ? 'PAST'
+              ? {
+                  lt: nowInNewYorkUTC,
+                }
               : eventStatus === 'upcoming'
-                ? 'UPCOMING'
+                ? {
+                    gt: nowInNewYorkUTC,
+                  }
                 : undefined,
         },
         take,
@@ -228,6 +243,7 @@ export class EventsService {
         let eventGross = 0;
         let totalTickets = 0;
         let totalSales = 0;
+        const eventStatus = getEventStatus(event.startTime);
 
         event.ticketTypes.forEach((ticketType) => {
           eventGross =
@@ -243,6 +259,7 @@ export class EventsService {
           totalTickets,
           totalSales,
           totalCount: eventCount,
+          eventStatus,
         };
       });
 
@@ -334,9 +351,12 @@ export class EventsService {
     const { page, limit } = paginationQuery;
     const skip = page ? Math.abs((Number(page) - 1) * Number(limit)) : page;
     const take = limit ? Number(limit) : undefined;
+    const nowInNewYorkUTC = getCurrentNewYorkDateTimeInUTC();
     const event = await this.prisma.event.findMany({
       where: {
-        eventStatus: 'UPCOMING',
+        startTime: {
+          gt: nowInNewYorkUTC,
+        },
       },
       include: {
         ticketTypes: true,
@@ -344,7 +364,7 @@ export class EventsService {
       take,
       skip,
       orderBy: {
-        createdAt: 'desc',
+        startTime: 'desc',
       },
     });
 
@@ -355,9 +375,12 @@ export class EventsService {
     const { page, limit } = paginationQuery;
     const skip = page ? Math.abs((Number(page) - 1) * Number(limit)) : page;
     const take = limit ? Number(limit) : undefined;
+    const nowInNewYorkUTC = getCurrentNewYorkDateTimeInUTC();
     const event = await this.prisma.event.findMany({
       where: {
-        eventStatus: 'PAST',
+        startTime: {
+          lt: nowInNewYorkUTC,
+        },
       },
       include: {
         ticketTypes: true,
@@ -365,7 +388,7 @@ export class EventsService {
       take,
       skip,
       orderBy: {
-        createdAt: 'desc',
+        startTime: 'desc',
       },
     });
 
