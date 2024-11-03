@@ -23,6 +23,7 @@ import {
   getCurrentNewYorkDateTimeInUTC,
   getEventStatus,
 } from 'src/utils/date-formatter';
+// import { cloudinary } from 'src/cloudinary/cloudinary.config';
 
 export type EventStatus = { eventStatus: 'UPCOMING' | 'PAST' };
 
@@ -188,58 +189,158 @@ export class EventsService {
       const { skip, take } = getPagination({ _page, _limit });
       const nowInNewYorkUTC = getCurrentNewYorkDateTimeInUTC();
 
-      const events = await this.prisma.event.findMany({
-        where: {
-          name: {
-            contains: search,
-            mode: 'insensitive',
-          },
-          startTime:
-            eventStatus === 'past'
-              ? {
-                  lt: nowInNewYorkUTC,
-                }
-              : eventStatus === 'upcoming'
+      const [events, eventsCount] = await Promise.all([
+        this.prisma.event.findMany({
+          where: {
+            name: {
+              contains: search,
+              mode: 'insensitive',
+            },
+            startTime:
+              eventStatus === 'past'
                 ? {
-                    gt: nowInNewYorkUTC,
+                    lt: nowInNewYorkUTC,
                   }
-                : undefined,
-        },
-        include: {
-          _count: true,
-          ticketTypes: {
-            include: {
-              tickets: true,
+                : eventStatus === 'upcoming'
+                  ? {
+                      gt: nowInNewYorkUTC,
+                    }
+                  : undefined,
+          },
+          include: {
+            _count: true,
+            ticketTypes: {
+              include: {
+                tickets: true,
+              },
             },
           },
-        },
-        take,
-        skip,
-        orderBy: {
-          createdAt: 'desc',
-        },
+          take,
+          skip,
+          orderBy: {
+            createdAt: 'desc',
+          },
+        }),
+        this.prisma.event.count({
+          where: {
+            name: {
+              contains: search,
+              mode: 'insensitive',
+            },
+            startTime:
+              eventStatus === 'past'
+                ? {
+                    lt: nowInNewYorkUTC,
+                  }
+                : eventStatus === 'upcoming'
+                  ? {
+                      gt: nowInNewYorkUTC,
+                    }
+                  : undefined,
+          },
+          take,
+          skip,
+        }),
+      ]);
+
+      const extendedEvents = events.map((event) => {
+        // let eventGross = 0;
+        // let totalTickets = 0;
+        // let totalSales = 0;
+        const eventStatus = getEventStatus(event.startTime);
+
+        // event.ticketTypes.forEach((ticketType) => {
+        //   eventGross =
+        //     eventGross + ticketType.price * ticketType.tickets.length;
+
+        //   totalTickets = totalSales + ticketType.quantity;
+        //   totalSales = totalSales + ticketType.tickets.length;
+        // });
+
+        return {
+          ...event,
+          // totalTickets,
+          eventStatus,
+        };
       });
 
-      const eventCount = this.prisma.event.count({
-        where: {
-          name: {
-            contains: search,
-            mode: 'insensitive',
-          },
-          startTime:
-            eventStatus === 'past'
-              ? {
-                  lt: nowInNewYorkUTC,
-                }
-              : eventStatus === 'upcoming'
+      return {
+        events: extendedEvents,
+        eventsCount,
+      };
+    } catch (e) {
+      console.log(e);
+      throw new InternalServerErrorException(
+        'Something went wrong while retrieving events',
+      );
+    }
+  }
+
+  async adminGetEvents(paginationQuery: EventsPaginationQueryDto) {
+    try {
+      const {
+        page: _page,
+        limit: _limit,
+        eventStatus = 'all',
+        search,
+      } = paginationQuery;
+
+      const { skip, take } = getPagination({ _page, _limit });
+      const nowInNewYorkUTC = getCurrentNewYorkDateTimeInUTC();
+
+      const [events, eventsCount] = await Promise.all([
+        this.prisma.event.findMany({
+          where: {
+            name: {
+              contains: search,
+              mode: 'insensitive',
+            },
+            startTime:
+              eventStatus === 'past'
                 ? {
-                    gt: nowInNewYorkUTC,
+                    lt: nowInNewYorkUTC,
                   }
-                : undefined,
-        },
-        take,
-        skip,
-      });
+                : eventStatus === 'upcoming'
+                  ? {
+                      gt: nowInNewYorkUTC,
+                    }
+                  : undefined,
+          },
+          include: {
+            _count: true,
+            ticketTypes: {
+              include: {
+                tickets: true,
+              },
+            },
+          },
+          take,
+          skip,
+          orderBy: {
+            createdAt: 'desc',
+          },
+        }),
+        this.prisma.event.count({
+          where: {
+            name: {
+              contains: search,
+              mode: 'insensitive',
+            },
+            startTime:
+              eventStatus === 'past'
+                ? {
+                    lt: nowInNewYorkUTC,
+                  }
+                : eventStatus === 'upcoming'
+                  ? {
+                      gt: nowInNewYorkUTC,
+                    }
+                  : undefined,
+          },
+          take,
+          skip,
+        }),
+      ]);
 
       const extendedEvents = events.map((event) => {
         let eventGross = 0;
@@ -260,12 +361,14 @@ export class EventsService {
           gross: eventGross,
           totalTickets,
           totalSales,
-          totalCount: eventCount,
           eventStatus,
         };
       });
 
-      return extendedEvents;
+      return {
+        events: extendedEvents,
+        eventsCount,
+      };
     } catch (e) {
       console.log(e);
       throw new InternalServerErrorException(
@@ -402,15 +505,44 @@ export class EventsService {
     return event;
   }
 
-  async updateEvent(eventId: Event['id'], dto: UpdateEventDto) {
-    const event = await this.prisma.event.update({
+  async updateEvent(
+    eventId: Event['id'],
+    dto: UpdateEventDto,
+    coverImage?: Express.Multer.File[],
+    images?: Express.Multer.File[],
+  ) {
+    const oldDetails = await this.prisma.event.findFirst({
       where: {
         id: eventId,
       },
-      data: dto,
     });
 
-    return event;
+    if (!oldDetails) {
+      throw new NotFoundException('Event to update not found');
+    }
+
+    const newCoverImage = coverImage
+      ? coverImage[0].path
+      : oldDetails.coverImage;
+    const newImages = images
+      ? [...images.map((image) => image.path), ...oldDetails.images]
+      : oldDetails.images;
+
+    try {
+      const event = await this.prisma.event.update({
+        where: {
+          id: eventId,
+        },
+        data: { ...dto, images: newImages, coverImage: newCoverImage },
+      });
+
+      return event;
+    } catch (e) {
+      console.log(e);
+      throw new InternalServerErrorException(
+        'Something went wrong while updating event details',
+      );
+    }
   }
 
   async updateTicketType(
@@ -446,6 +578,64 @@ export class EventsService {
       console.log(e);
       throw new InternalServerErrorException('Unable to getch event revenue');
     }
+  }
+
+  async removeImageFromSlide(eventId: string, image: string) {
+    const oldEvent = await this.prisma.event.findFirst({
+      where: {
+        id: eventId,
+      },
+    });
+    if (oldEvent.images.length === 1) {
+      throw new InternalServerErrorException(
+        'There must be at least one slide left',
+      );
+    }
+    let imageToRemove = '';
+    const updatedImages = oldEvent.images.filter((_image) => {
+      if (image === _image) {
+        imageToRemove = _image;
+      }
+      return image !== _image;
+    });
+    console.log('Image to remove', imageToRemove);
+    console.log('Updated Images', updatedImages);
+
+    if (!imageToRemove) {
+      throw new NotFoundException('Image to remove not found');
+    }
+    // Strip the file extension to get the public_id
+    // const publicId = imageToRemove.replace(/\.[^/.]+$/, ''); // Removes the extension
+
+    try {
+      await this.prisma.$transaction(
+        async (prisma) => {
+          await prisma.event.update({
+            where: {
+              id: eventId,
+            },
+            data: {
+              images: updatedImages,
+            },
+          });
+          // TODO: Delete the file from cloudinary
+          // await cloudinary.uploader.destroy(publicId);
+        },
+        {
+          maxWait: 250000, // Maximum time (in milliseconds) to wait for the transaction to start
+          timeout: 250000, // Maximum time (in milliseconds) for the transaction to complete
+        },
+      );
+    } catch (e) {
+      console.log(e);
+      throw new InternalServerErrorException(
+        'Unable to remove image from slide',
+      );
+    }
+    return {
+      message: 'Image removed successfully',
+      eventId: eventId,
+    };
   }
 
   async deleteEvent(ticketId: Event['id']) {

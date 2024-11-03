@@ -14,6 +14,7 @@ import {
   CreateOrderDto,
   // AssignGuestOrderDto,
   FillTicketDetailsDto,
+  GenerateOrderReportQueryDto,
   GetOrdersQuery,
   GetRevenueQueryDto,
   UserOrderPaginationDto,
@@ -140,6 +141,27 @@ export class OrdersController {
   ) {
     const userId = req.user.id;
     return this.ordersService.getUserOrders(userId, paginationQuery);
+  }
+
+  @UseGuards(JwtAuthenticationGuard, RolesGuard)
+  @Roles()
+  @Get('generate-order-report')
+  async generateOrderReport(
+    @Res() res: Response,
+    @Query() query: GenerateOrderReportQueryDto,
+  ) {
+    const buffer = await this.ordersService.generateOrderReport(query);
+
+    // Step 4: Send the buffer as a downloadable file
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="Order_Report_${query.startDate || ''}-${query.endDate || ''}.xlsx"`,
+    );
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    res.send(buffer);
   }
 
   @UseGuards(JwtAuthenticationGuard, RolesGuard)

@@ -11,12 +11,13 @@ import { PrismaService } from 'src/prisma.service';
 import {
   CreateOrderDto,
   FillTicketDetailsDto,
+  GenerateOrderReportQueryDto,
   GetOrdersQuery,
   GetRevenueQueryDto,
   UserOrderPaginationDto,
 } from './dto/orders.dto';
 // import { PaginationQueryDto } from 'src/shared/dto/pagination-query.dto';
-import { Order, User } from '@prisma/client';
+import { Order, TicketType, User } from '@prisma/client';
 import { StripeService } from 'src/stripe/stripe.service';
 import { EmailsService } from 'src/emails/emails.service';
 import { ConfigService } from '@nestjs/config';
@@ -38,6 +39,7 @@ import {
   getEventStatus,
 } from 'src/utils/date-formatter';
 import { EventsService } from 'src/events/events.service';
+import * as XLSX from 'xlsx';
 
 const nanoid = customAlphabet('1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ', 12);
 
@@ -126,9 +128,9 @@ export class OrdersService {
         const allTicketOrders: { ticketTypeId: string }[] = [];
         const addonsOrders: { addonId: string; quantity: number }[] = [];
 
-        // TODO: Handle ticket max sales
-
-        dto.ticketOrders.forEach(async (ticketTypeOrder) => {
+        // dto.ticketOrders.forEach(async (ticketTypeOrder) => {
+        // using for in loop because throwing error in a callback in javascript for rolling back the transaction occurs in another context
+        for (const ticketTypeOrder of dto.ticketOrders) {
           const { quantity: totalQuantity, name: ticketName } =
             event.ticketTypes.find(
               (ticketType) => ticketType.id === ticketTypeOrder.ticketTypeId,
@@ -144,9 +146,9 @@ export class OrdersService {
             },
           });
           const quantityAvailable = totalQuantity - soldQuantity;
-          if (ticketTypeOrder.quantity < quantityAvailable) {
+          if (ticketTypeOrder.quantity > quantityAvailable) {
             throw new InternalServerErrorException(
-              `Unable to place order, only ${quantityAvailable} slot(s) are available for ${ticketName} ticket type`,
+              `Unable to place order, only ${quantityAvailable} slot(s) are available for ${ticketName} ticket type, please go back and edit your order`,
             );
           }
           for (let i = 0; i < ticketTypeOrder.quantity; i++) {
@@ -154,7 +156,8 @@ export class OrdersService {
               ticketTypeId: ticketTypeOrder.ticketTypeId,
             });
           }
-        });
+        }
+        // });
 
         if (allTicketOrders.length < 1) {
           throw new BadRequestException(
@@ -416,40 +419,62 @@ export class OrdersService {
     const { skip, take } = getPagination({ _page, _limit });
     const nowInNewYorkUTC = getCurrentNewYorkDateTimeInUTC();
     try {
-      const orders = await this.prisma.order.findMany({
-        where: {
-          event: {
-            startTime:
-              eventStatus === 'past'
-                ? {
-                    lt: nowInNewYorkUTC,
-                  }
-                : eventStatus === 'upcoming'
+      const [orders, ordersCount] = await Promise.all([
+        this.prisma.order.findMany({
+          where: {
+            event: {
+              startTime:
+                eventStatus === 'past'
                   ? {
-                      gt: nowInNewYorkUTC,
+                      lt: nowInNewYorkUTC,
                     }
-                  : undefined,
-          },
-          createdAt: {
-            gte: startDate,
-            lte: endDate,
-          },
-        },
-        include: {
-          tickets: {
-            include: {
-              ticketType: true,
+                  : eventStatus === 'upcoming'
+                    ? {
+                        gt: nowInNewYorkUTC,
+                      }
+                    : undefined,
+            },
+            createdAt: {
+              gte: startDate,
+              lte: endDate,
             },
           },
-          event: true,
-          user: true,
-        },
-        orderBy: {
-          createdAt: 'desc',
-        },
-        skip,
-        take,
-      });
+          include: {
+            tickets: {
+              include: {
+                ticketType: true,
+              },
+            },
+            event: true,
+            user: true,
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+          skip,
+          take,
+        }),
+        this.prisma.order.count({
+          where: {
+            event: {
+              startTime:
+                eventStatus === 'past'
+                  ? {
+                      lt: nowInNewYorkUTC,
+                    }
+                  : eventStatus === 'upcoming'
+                    ? {
+                        gt: nowInNewYorkUTC,
+                      }
+                    : undefined,
+            },
+            createdAt: {
+              gte: startDate,
+              lte: endDate,
+            },
+          },
+        }),
+      ]);
 
       const extendedOrder = orders.map((order) => {
         const orderAmount = order.tickets.reduce((accValue, currTicket) => {
@@ -461,7 +486,7 @@ export class OrdersService {
         };
       }, 0);
 
-      return extendedOrder;
+      return { orders: extendedOrder, ordersCount };
     } catch (e) {
       console.log(e);
       throw new HttpException(
@@ -469,6 +494,65 @@ export class OrdersService {
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
+  }
+
+  async generateOrderReport(query: GenerateOrderReportQueryDto) {
+    const { orders } = await this.getOrders(query);
+
+    // Format the data as a worksheet
+    type GroupByTicketType = {
+      [key in TicketType['name']]: {
+        ticketTypeName: string;
+        quantity: number;
+      };
+    };
+    const worksheetData = orders.map((order) => {
+      const groupedTickets: GroupByTicketType = order.tickets.reduce(
+        (group, currTicket) => {
+          if (group[currTicket.ticketType.name]) {
+            group[currTicket.ticketType.name].quantity += 1;
+          } else {
+            group[currTicket.ticketType.name] = {
+              ticketTypeName: currTicket.ticketType.name,
+              quantity: 1,
+            };
+          }
+          return group;
+        },
+        {} as GroupByTicketType,
+      );
+      const lastElementIndex = Object.values(groupedTickets).length - 1;
+      const ticketOrderSummary = Object.values(groupedTickets).reduce(
+        (summary, currGroup, index) => {
+          return (
+            summary +
+            `${currGroup.quantity} ${currGroup.ticketTypeName} Ticket(s) ${index < lastElementIndex ? ', ' : ''}`
+          );
+        },
+        '',
+      );
+      return {
+        ID: order.id,
+        'Order Date': order.createdAt.toDateString(),
+        'Event Name': order.event.name,
+        'Customer Name': `${order.firstName} ${order.lastName}`,
+        Phone: order?.phone || 'N/A',
+        Email: order?.email || 'N/A',
+        'Ticket Order Summary': ticketOrderSummary,
+        'Amount Spent': `$${order.amountPaid.toFixed(2)}`,
+      };
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(worksheetData);
+
+    // Step 2: Create a workbook and add the worksheet
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Order Report');
+
+    // Step 3: Write the workbook to a buffer
+    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+
+    return buffer;
   }
 
   async fillTicketDetails(dto: FillTicketDetailsDto) {
@@ -676,7 +760,7 @@ export class OrdersService {
   }
 
   async ticketsSoldStats(query: DateRangeQueryDto) {
-    const orders1 = await this.getOrders(query);
+    const orders1 = (await this.getOrders(query)).orders;
     const ticketsSold1 =
       orders1?.reduce((accValue, order) => {
         return accValue + order.tickets.length;
@@ -689,10 +773,12 @@ export class OrdersService {
       const startDate2 = dateFns.subDays(query.startDate, daysDiff || 1);
       const endDate2 = dateFns.subMonths(query.endDate, daysDiff || 1);
 
-      const orders2 = await this.getOrders({
-        endDate: endDate2,
-        startDate: startDate2,
-      });
+      const orders2 = (
+        await this.getOrders({
+          endDate: endDate2,
+          startDate: startDate2,
+        })
+      ).orders;
 
       const ticketsSold2 =
         orders2?.reduce((accValue, order) => {

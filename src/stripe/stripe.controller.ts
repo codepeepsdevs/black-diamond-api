@@ -72,7 +72,6 @@ export class StripeController {
         paymentIntent.amount_received / 100, // convert from cent to dollarss
       );
 
-      // TODO: Send email for them to fill in their ticket details
       const ticketLink = `${this.configService.get(FRONTEND_URL)}/tickets/${order.id}/fill-details`; // should automatically redirect if the user has filled it before.
       await this.emailService.sendOrderConfirmed(order.email, {
         order,

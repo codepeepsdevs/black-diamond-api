@@ -17,6 +17,8 @@ import { AuthMethod, User } from '@prisma/client';
 import { PaginationQueryDto } from 'src/shared/dto/pagination-query.dto';
 import { GetUsersStatsDto } from './dto/users.dto';
 import * as dateFns from 'date-fns';
+import { convertDateToNewYorkTimeInUTC } from 'src/utils/date-formatter';
+import * as XLSX from 'xlsx';
 
 @Injectable()
 export class UsersService {
@@ -101,30 +103,85 @@ export class UsersService {
         : undefined;
     const take = limit ? Number(limit) : undefined;
 
-    const users = await this.prisma.user.findMany({
-      include: {
-        address: true,
-        billingInfo: true,
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-      skip,
-      take,
-    });
+    const [users, usersCount] = await Promise.all([
+      this.prisma.user.findMany({
+        include: {
+          address: true,
+          billingInfo: true,
+          order: {
+            where: {
+              paymentStatus: 'SUCCESSFUL',
+            },
+          },
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+        skip,
+        take,
+      }),
+      this.prisma.user.count(),
+    ]);
     // if (!user) {
     //   throw new NotFoundException('User not found');
     // }
-    return users.map((user) => {
-      return excludePrisma(user, [
-        'authMethod',
-        'confirmToken',
-        'refreshToken',
-        'resetToken',
-        'resetTokenExpiry',
-        'password',
-      ]);
+    const _users = users.map((user) => {
+      const amountSpent = user.order.reduce((accValue, currOrder) => {
+        return (accValue += currOrder.amountPaid);
+      }, 0);
+
+      return excludePrisma(
+        {
+          ...user,
+          billingInfo: user.billingInfo,
+          address: user.address,
+          amountSpent,
+        },
+        [
+          'authMethod',
+          'confirmToken',
+          'refreshToken',
+          'resetToken',
+          'resetTokenExpiry',
+          'password',
+        ],
+      );
     });
+
+    return { users: _users, usersCount };
+  }
+
+  async exportUsersToExcel() {
+    const { users } = await this.getUsers({
+      page: undefined,
+      limit: undefined,
+    });
+    // Format the data as a worksheet
+    const worksheetData = users.map((user) => {
+      return {
+        ID: user.id,
+        'First Name': user.firstname,
+        'Last Name': user.lastname,
+        Email: user.email,
+        Phone: user.phone || 'N/A',
+        City: user.address?.city || 'N/A',
+        Country: user.address?.country || 'N/A',
+        State: user.address?.state || 'N/A',
+        'Date Joined': user.createdAt.toDateString(),
+        'Amount Spent': `$${user.amountSpent.toFixed(2)}`,
+      };
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(worksheetData);
+
+    // Step 2: Create a workbook and add the worksheet
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'User Details');
+
+    // Step 3: Write the workbook to a buffer
+    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+
+    return buffer;
   }
 
   async updateUserInfo(userId: string, updateUserInfoDto: UpdateUserInfoDto) {
@@ -325,7 +382,7 @@ export class UsersService {
         : undefined;
     const take = limit ? Number(limit) : undefined;
 
-    const users1 = await this.prisma.user.findMany({
+    const users1Count = await this.prisma.user.count({
       where: {
         createdAt: {
           gte: query.startDate,
@@ -347,7 +404,7 @@ export class UsersService {
       const startDate2 = dateFns.subDays(query.startDate, daysDiff || 1);
       const endDate2 = dateFns.subMonths(query.endDate, daysDiff || 1);
 
-      const users2 = await this.prisma.user.findMany({
+      const users2Count = await this.prisma.user.count({
         where: {
           createdAt: {
             gte: startDate2,
@@ -361,10 +418,56 @@ export class UsersService {
         take,
       });
 
-      upTrend = users1.length > users2.length ? true : false;
+      upTrend = users1Count > users2Count ? true : false;
     }
 
-    const usersCount = users1.length;
-    return { usersCount, upTrend };
+    return { usersCount: users1Count, upTrend };
+  }
+
+  async newUsersTodayStats() {
+    // Get the start and end of the current day in New York time
+    const startOfTodayNY = convertDateToNewYorkTimeInUTC(
+      dateFns.startOfDay(new Date()),
+    );
+    const endOfTodayNY = convertDateToNewYorkTimeInUTC(
+      dateFns.endOfDay(new Date()),
+    );
+
+    const startOfYesterdayNY = convertDateToNewYorkTimeInUTC(
+      dateFns.subDays(dateFns.startOfDay(new Date()), 1),
+    );
+
+    const [newUsersTodayCount, newUsersYesterdayCount] = await Promise.all([
+      await this.prisma.user.count({
+        where: {
+          createdAt: {
+            gte: startOfTodayNY,
+            lt: endOfTodayNY,
+          },
+        },
+      }),
+      await this.prisma.user.count({
+        where: {
+          createdAt: {
+            gte: startOfYesterdayNY,
+            lt: startOfTodayNY,
+          },
+        },
+      }),
+    ]);
+
+    const upTrend = newUsersTodayCount > newUsersYesterdayCount ? true : false;
+
+    return { newUsersCount: newUsersTodayCount, upTrend };
+  }
+
+  async adminUsersStats() {
+    const adminsCount = await this.prisma.user.count({
+      where: {
+        role: 'admin',
+      },
+    });
+
+    return { adminsCount };
   }
 }

@@ -5,8 +5,6 @@ import { Request } from 'express';
 import { DRIVER_CLOUDINARY_FOLDER_NAME } from 'src/constants';
 import { memoryStorage } from 'multer';
 
-// TODO: !!!!! Change DRIVER_CLOUDINARY_FOLDER_NAME to something gotten from config or .env
-
 // Configure Cloudinary storage
 const cloudinaryStorage = new CloudinaryStorage({
   cloudinary: cloudinary,

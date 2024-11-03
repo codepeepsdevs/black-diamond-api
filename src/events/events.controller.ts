@@ -20,6 +20,7 @@ import {
   CreateEventPromoCode,
   CreateEventTicketTypeDto,
   GetPromocodeDto,
+  RemoveImageDto,
   UpdateEventDto,
   UpdatEventTicketTypeDto,
 } from './dto/events.dto';
@@ -112,6 +113,13 @@ export class EventsController {
     return this.eventsService.getEvents(paginationQuery);
   }
 
+  @UseGuards(JwtAuthenticationGuard, RolesGuard)
+  @Roles('admin')
+  @Get('admin-get-events')
+  async adminGetEvents(@Query() paginationQuery: EventsPaginationQueryDto) {
+    return this.eventsService.adminGetEvents(paginationQuery);
+  }
+
   // @UseGuards(JwtAuthenticationGuard, RolesGuard)
   // @Roles()
   @Get(':eventId/get-ticket-types')
@@ -144,11 +152,36 @@ export class EventsController {
   @UseGuards(JwtAuthenticationGuard, RolesGuard)
   @Roles('admin')
   @Put('update-event/:eventId')
+  @UseInterceptors(
+    FileFieldsInterceptor(
+      [
+        {
+          name: 'coverImage',
+          maxCount: 1,
+        },
+        {
+          name: 'images',
+          maxCount: 10,
+        },
+      ],
+      multerOptions,
+    ),
+  )
   async updateEvent(
+    @UploadedFiles()
+    files: {
+      coverImage?: Express.Multer.File[];
+      images?: Express.Multer.File[];
+    },
     @Param('eventId') eventId: string,
     @Body() dto: UpdateEventDto,
   ) {
-    return this.eventsService.updateEvent(eventId, dto);
+    return this.eventsService.updateEvent(
+      eventId,
+      dto,
+      files.coverImage,
+      files.images,
+    );
   }
 
   @UseGuards(JwtAuthenticationGuard, RolesGuard)
@@ -166,6 +199,16 @@ export class EventsController {
   @Get('get-revenue/:eventId')
   async getRevenue(@Param('eventId') eventId: string) {
     return this.eventsService.getRevenue(eventId);
+  }
+
+  @UseGuards(JwtAuthenticationGuard, RolesGuard)
+  @Roles('admin')
+  @Delete('remove-image/:eventId')
+  async removeImageFromSlide(
+    @Param('eventId') eventId: string,
+    @Body() dto: RemoveImageDto,
+  ) {
+    return this.eventsService.removeImageFromSlide(eventId, dto.image);
   }
 
   @UseGuards(JwtAuthenticationGuard, RolesGuard)

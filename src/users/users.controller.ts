@@ -9,6 +9,7 @@ import {
   Query,
   Req,
   Request,
+  Res,
   UseGuards,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
@@ -20,6 +21,7 @@ import JwtAuthenticationGuard from 'src/auth/guards/jwt-authentication.guard';
 import RequestWithUser from 'src/auth/types/requestWithUser.interface';
 import { GetUsersStatsDto } from './dto/users.dto';
 import { PaginationQueryDto } from 'src/shared/dto/pagination-query.dto';
+import { Response } from 'express';
 
 @UseGuards(JwtAuthenticationGuard, RolesGuard)
 @Controller('users')
@@ -71,5 +73,33 @@ export class UsersController {
     @Body() dto: ChangePasswordDto,
   ) {
     return this.usersService.changePassword(req.user.id, dto);
+  }
+
+  @Roles('admin')
+  @Get('new-users-today-stats')
+  async newUsersTodayStats() {
+    return this.usersService.newUsersTodayStats();
+  }
+
+  @Roles('admin')
+  @Get('admin-users-stats')
+  async adminUsersStats() {
+    return this.usersService.adminUsersStats();
+  }
+
+  @Roles('admin')
+  @Get('export-to-excel')
+  async exportToExcel(@Res() res: Response) {
+    const buffer = await this.usersService.exportUsersToExcel();
+    // Step 4: Send the buffer as a downloadable file
+    res.setHeader(
+      'Content-Disposition',
+      'attachment; filename="Users_Details.xlsx"',
+    );
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    res.send(buffer);
   }
 }

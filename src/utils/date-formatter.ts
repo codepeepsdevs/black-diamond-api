@@ -14,11 +14,11 @@ export const getCurrentNewYorkDateTimeInUTC = () => {
 
   // Convert current time to New York time
   const newYorkTime = toZonedTime(now, timeZone);
-  console.log('New york time (to zoned time)', newYorkTime.toISOString());
+  // console.log('New york time (to zoned time)', newYorkTime.toISOString());
 
   // Convert New York time to UTC for Prisma query
   const utcDate = fromZonedTime(newYorkTime, timeZone);
-  console.log('New york time to utc date', utcDate.toISOString());
+  // console.log('New york time to utc date', utcDate.toISOString());
 
   return utcDate;
 };
@@ -29,11 +29,11 @@ export const convertDateToNewYorkTimeInUTC = (date: Date) => {
 
   // Convert current time to New York time
   const newYorkTime = toZonedTime(date, timeZone);
-  console.log('New york time (to zoned time)', newYorkTime.toISOString());
+  // console.log('New york time (to zoned time)', newYorkTime.toISOString());
 
   // Convert New York time to UTC for Prisma query
   const utcDate = fromZonedTime(newYorkTime, timeZone);
-  console.log('New york time to utc date', utcDate.toISOString());
+  // console.log('New york time to utc date', utcDate.toISOString());
 
   return utcDate;
 };
