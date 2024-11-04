@@ -202,6 +202,20 @@ export class EventsController {
   }
 
   @UseGuards(JwtAuthenticationGuard, RolesGuard)
+  @Roles(UserRole.admin)
+  @Put('publish-event/:eventId')
+  async publishEvent(@Param('eventId') eventId: string) {
+    return this.eventsService.publishEvent(eventId);
+  }
+
+  @UseGuards(JwtAuthenticationGuard, RolesGuard)
+  @Roles(UserRole.admin)
+  @Put('unpublish-event/:eventId')
+  async unpublishEvent(@Param('eventId') eventId: string) {
+    return this.eventsService.unpublishEvent(eventId);
+  }
+
+  @UseGuards(JwtAuthenticationGuard, RolesGuard)
   @Roles('admin')
   @Delete('remove-image/:eventId')
   async removeImageFromSlide(

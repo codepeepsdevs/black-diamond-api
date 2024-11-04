@@ -192,6 +192,7 @@ export class EventsService {
       const [events, eventsCount] = await Promise.all([
         this.prisma.event.findMany({
           where: {
+            isPublished: true,
             name: {
               contains: search,
               mode: 'insensitive',
@@ -223,6 +224,7 @@ export class EventsService {
         }),
         this.prisma.event.count({
           where: {
+            isPublished: true,
             name: {
               contains: search,
               mode: 'insensitive',
@@ -636,6 +638,62 @@ export class EventsService {
       message: 'Image removed successfully',
       eventId: eventId,
     };
+  }
+
+  async publishEvent(eventId: string) {
+    const eventExists = await this.prisma.event.findFirst({
+      where: {
+        id: eventId,
+      },
+    });
+    if (!eventExists) {
+      throw new NotFoundException('Event to publish was not found');
+    }
+    try {
+      const updatedEvent = await this.prisma.event.update({
+        where: {
+          id: eventId,
+        },
+        data: {
+          isPublished: true,
+        },
+      });
+
+      return updatedEvent;
+    } catch (e) {
+      console.log(e);
+      throw new InternalServerErrorException(
+        'Something went wrong while publishing event',
+      );
+    }
+  }
+
+  async unpublishEvent(eventId: string) {
+    const eventExists = await this.prisma.event.findFirst({
+      where: {
+        id: eventId,
+      },
+    });
+    if (!eventExists) {
+      throw new NotFoundException('Event to unpublish was not found');
+    }
+    try {
+      const updatedEvent = await this.prisma.event.update({
+        where: {
+          id: eventId,
+        },
+        data: {
+          isPublished: false,
+        },
+      });
+
+      return updatedEvent;
+    } catch (e) {
+      console.log(e);
+      throw new InternalServerErrorException(
+        'Something went wrong while unpublishing event',
+      );
+    }
   }
 
   async deleteEvent(ticketId: Event['id']) {

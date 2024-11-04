@@ -64,6 +64,11 @@ export class OrdersService {
         'Event is in the past, cannot book an event in the past',
       );
     }
+    if (!event.isPublished) {
+      throw new InternalServerErrorException(
+        'This event is not yet taking orders',
+      );
+    }
     return await this.prisma.$transaction(
       async (prisma) => {
         if (token) {
