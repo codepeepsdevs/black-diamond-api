@@ -16,8 +16,9 @@ export class SignupDto {
 }
 
 export class CompleteSignupDto {
-  @IsEmail()
-  email: string;
+  @IsString()
+  @IsNotEmpty({ message: 'Token is required' })
+  token: string;
 
   @IsNotEmpty()
   firstname: string;

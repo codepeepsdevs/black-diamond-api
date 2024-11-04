@@ -210,7 +210,7 @@ export class OrdersService {
           });
 
           if (newAccount) {
-            await this.authService.sendVerificationEmail(dto.email);
+            await this.authService.sendCompleteSignupLink(dto.email);
           }
 
           return order;

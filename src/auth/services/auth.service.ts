@@ -13,7 +13,10 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from 'src/prisma.service';
 
 import { UsersService } from 'src/users/users.service';
-import { TokenPayload } from '../types/tokenPayload.interface';
+import {
+  CompleeteSignupPayload,
+  TokenPayload,
+} from '../types/tokenPayload.interface';
 import { CreateUserDto } from 'src/users/dto/create-user.dto';
 
 import { excludePrisma } from 'src/helpers/exclude.helper';
@@ -83,7 +86,20 @@ export class AuthenticationService {
   }
 
   public async completeSignup(dto: CompleteSignupDto) {
-    const userExists = await this.usersService.findOneByEmail(dto.email);
+    let payload: CompleeteSignupPayload = null;
+    try {
+      payload = await this.jwtService.verifyAsync<CompleeteSignupPayload>(
+        dto.token,
+        {
+          secret: this.configService.get(JWT_EMAIL_SECRET),
+        },
+      );
+    } catch (e) {
+      throw new BadRequestException(
+        'The link is invalid or has expired, please login to request for a new link',
+      );
+    }
+    const userExists = await this.usersService.findOneByEmail(payload.email);
 
     if (!userExists) {
       throw new HttpException(
@@ -102,10 +118,10 @@ export class AuthenticationService {
     try {
       const user = await this.prisma.user.update({
         where: {
-          email: dto.email,
+          email: payload.email,
         },
         data: {
-          email: dto.email,
+          email: payload.email,
           firstname: dto.firstname,
           lastname: dto.lastname,
           password: hashedPassword,
@@ -155,6 +171,7 @@ export class AuthenticationService {
       isDefaultPassword
     ) {
       await this.sendCompleteSignupLink(user.email);
+      throw new ForbiddenException('complete signup');
     }
 
     try {
@@ -170,10 +187,7 @@ export class AuthenticationService {
     if (!user.emailConfirmed) {
       this.sendVerificationEmail(email);
 
-      throw new HttpException(
-        'email not verified, please check your mailbox to verify your blackdiamond account.',
-        HttpStatus.FORBIDDEN,
-      );
+      throw new HttpException('email not verified', HttpStatus.FORBIDDEN);
     }
 
     if (user.authMethod !== 'EMAIL') {
@@ -420,7 +434,7 @@ export class AuthenticationService {
       { email: user.email },
 
       {
-        expiresIn: '10m', // Token expires in 10 minutes
+        expiresIn: this.configService.get(EMAIL_EXPIRY_TIME), // Token expires in 15 minutes
         secret: this.configService.get<string>(JWT_ACCESS_TOKEN_SECRET),
       },
     );
@@ -517,7 +531,7 @@ export class AuthenticationService {
     if (!user.emailConfirmed) {
       const payload: TokenPayload = { userId: user.id };
       const token = this.jwtService.sign(payload, {
-        expiresIn: this.configService.get<string>(EMAIL_EXPIRY_TIME) + 's', // 10 minutes = 60s * 10
+        expiresIn: this.configService.get<string>(EMAIL_EXPIRY_TIME), // 10 minutes = 60s * 10
         secret: this.configService.get<string>(JWT_ACCESS_TOKEN_SECRET),
       });
 
@@ -543,14 +557,13 @@ export class AuthenticationService {
   }
 
   async sendCompleteSignupLink(email: string) {
-    const emailToken = await this.jwtService.signAsync(
-      {
-        email: email,
-      },
-      {
-        secret: this.configService.get(JWT_EMAIL_SECRET),
-      },
-    );
+    const payload: CompleeteSignupPayload = {
+      email: email,
+    };
+    const emailToken = await this.jwtService.signAsync(payload, {
+      secret: this.configService.get(JWT_EMAIL_SECRET),
+      expiresIn: '2h', // Complete signup link expires in 2 hours
+    });
     const completeSignupLink = `${this.configService.get(FRONTEND_URL)}/complete-signup?token=${emailToken}`;
     await this.emailsService.sendCompleteSignup(email, completeSignupLink);
   }
