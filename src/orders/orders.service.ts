@@ -71,6 +71,7 @@ export class OrdersService {
     }
     return await this.prisma.$transaction(
       async (prisma) => {
+        // if a token exists, place the order for the user the token belongs to
         if (token) {
           try {
             const payload: TokenPayload = await this.jwtService.verifyAsync(
@@ -751,7 +752,13 @@ export class OrdersService {
           tickets: true,
           _count: {
             select: {
-              tickets: true,
+              tickets: {
+                where: {
+                  order: {
+                    paymentStatus: 'SUCCESSFUL',
+                  },
+                },
+              },
             },
           },
         },
