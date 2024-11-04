@@ -7,6 +7,7 @@ import { StripeService } from 'src/stripe/stripe.service';
 import { EventsService } from 'src/events/events.service';
 import { EmailsService } from 'src/emails/emails.service';
 import { UsersService } from 'src/users/users.service';
+import { AuthenticationService } from 'src/auth/services/auth.service';
 
 @Module({
   controllers: [OrdersController],
@@ -18,6 +19,7 @@ import { UsersService } from 'src/users/users.service';
     EventsService,
     EmailsService,
     UsersService,
+    AuthenticationService,
   ],
 })
 export class OrdersModule {}

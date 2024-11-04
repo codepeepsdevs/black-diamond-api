@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   HttpException,
   HttpStatus,
   Injectable,
@@ -18,7 +19,12 @@ import { CreateUserDto } from 'src/users/dto/create-user.dto';
 import { excludePrisma } from 'src/helpers/exclude.helper';
 import { CompleteSignupDto, ResetPasswordDto } from '../dto/auth.dto';
 import { EmailsService } from 'src/emails/emails.service';
-import { EMAIL_EXPIRY_TIME, JWT_ACCESS_TOKEN_SECRET } from 'src/constants';
+import {
+  EMAIL_EXPIRY_TIME,
+  FRONTEND_URL,
+  JWT_ACCESS_TOKEN_SECRET,
+  JWT_EMAIL_SECRET,
+} from 'src/constants';
 import { CustomUnauthorizedException } from 'src/exceptions/custom-unauthorized.exception';
 import { OauthUser } from '../types/oauthUser';
 
@@ -86,6 +92,12 @@ export class AuthenticationService {
       );
     }
 
+    if (userExists.emailConfirmed) {
+      throw new ForbiddenException(
+        'Password for the user has already been set',
+      );
+    }
+
     const hashedPassword = await bcrypt.hash(dto.password, 10);
     try {
       const user = await this.prisma.user.update({
@@ -130,6 +142,21 @@ export class AuthenticationService {
 
     if (!user) throw new UnauthorizedException('Invalid credentials');
 
+    const isDefaultPassword = await bcrypt.compare(
+      'DEFAULT_PASSWORD',
+      user.password,
+    );
+    // if a user account was created from placing an order and password has not been set
+    // i.e emailConfirmed is false and authentication method is email and the password is default_password,
+    // then tell the user to set their password using the email previously sent or send another
+    if (
+      !user.emailConfirmed &&
+      user.authMethod === 'EMAIL' &&
+      isDefaultPassword
+    ) {
+      await this.sendCompleteSignupLink(user.email);
+    }
+
     try {
       await this.verifyPassword(plainTextPassword, user.password);
     } catch (error) {
@@ -139,10 +166,14 @@ export class AuthenticationService {
       );
     }
 
+    // If a user account was created normally, i.e not from placing an order and email has not been confirmed, send confirmation email
     if (!user.emailConfirmed) {
       this.sendVerificationEmail(email);
 
-      throw new HttpException('email not confirmed', HttpStatus.FORBIDDEN);
+      throw new HttpException(
+        'email not verified, please check your mailbox to verify your blackdiamond account.',
+        HttpStatus.FORBIDDEN,
+      );
     }
 
     if (user.authMethod !== 'EMAIL') {
@@ -509,6 +540,19 @@ export class AuthenticationService {
     }
 
     return;
+  }
+
+  async sendCompleteSignupLink(email: string) {
+    const emailToken = await this.jwtService.signAsync(
+      {
+        email: email,
+      },
+      {
+        secret: this.configService.get(JWT_EMAIL_SECRET),
+      },
+    );
+    const completeSignupLink = `${this.configService.get(FRONTEND_URL)}/complete-signup?token=${emailToken}`;
+    await this.emailsService.sendCompleteSignup(email, completeSignupLink);
   }
 
   // generate otp

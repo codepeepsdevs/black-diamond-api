@@ -21,11 +21,7 @@ import { Order, TicketType, User } from '@prisma/client';
 import { StripeService } from 'src/stripe/stripe.service';
 import { EmailsService } from 'src/emails/emails.service';
 import { ConfigService } from '@nestjs/config';
-import {
-  FRONTEND_URL,
-  JWT_ACCESS_TOKEN_SECRET,
-  JWT_EMAIL_SECRET,
-} from 'src/constants';
+import { JWT_ACCESS_TOKEN_SECRET } from 'src/constants';
 import { JwtService } from '@nestjs/jwt';
 import { TokenPayload } from 'src/auth/types/tokenPayload.interface';
 import { UsersService } from 'src/users/users.service';
@@ -40,6 +36,7 @@ import {
 } from 'src/utils/date-formatter';
 import { EventsService } from 'src/events/events.service';
 import * as XLSX from 'xlsx';
+import { AuthenticationService } from 'src/auth/services/auth.service';
 
 const nanoid = customAlphabet('1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ', 12);
 
@@ -53,6 +50,7 @@ export class OrdersService {
     private readonly jwtService: JwtService,
     private readonly userService: UsersService,
     private readonly eventService: EventsService,
+    private readonly authService: AuthenticationService,
   ) {}
 
   async createOrder(dto: CreateOrderDto, token: string | undefined) {
@@ -106,6 +104,7 @@ export class OrdersService {
                   email: dto.email,
                   password: hashedPassword,
                   authMethod: 'EMAIL',
+                  emailConfirmed: false,
                   // Create related Address and BillingInfo with just their IDs
                   address: {
                     create: {},
@@ -211,19 +210,7 @@ export class OrdersService {
           });
 
           if (newAccount) {
-            const emailToken = await this.jwtService.signAsync(
-              {
-                email: dto.email,
-              },
-              {
-                secret: this.configService.get(JWT_EMAIL_SECRET),
-              },
-            );
-            const completeSignupLink = `${this.configService.get(FRONTEND_URL)}/complete-signup?token=${emailToken}`;
-            await this.emailService.sendCompleteSignup(
-              dto.email,
-              completeSignupLink,
-            );
+            await this.authService.sendVerificationEmail(dto.email);
           }
 
           return order;
@@ -703,6 +690,7 @@ export class OrdersService {
           gte: query.startDate,
           lte: query.endDate,
         },
+        paymentStatus: 'SUCCESSFUL',
       },
     });
 
@@ -726,6 +714,7 @@ export class OrdersService {
             gte: startDate2,
             lte: endDate2,
           },
+          paymentStatus: 'SUCCESSFUL',
         },
         orderBy: {
           createdAt: 'desc',
@@ -772,7 +761,9 @@ export class OrdersService {
   }
 
   async ticketsSoldStats(query: DateRangeQueryDto) {
-    const orders1 = (await this.getOrders(query)).orders;
+    const orders1 = (await this.getOrders(query)).orders.filter(
+      (order) => order.paymentStatus === 'SUCCESSFUL',
+    );
     const ticketsSold1 =
       orders1?.reduce((accValue, order) => {
         return accValue + order.tickets.length;
@@ -790,7 +781,7 @@ export class OrdersService {
           endDate: endDate2,
           startDate: startDate2,
         })
-      ).orders;
+      ).orders.filter((order) => order.paymentStatus === 'SUCCESSFUL');
 
       const ticketsSold2 =
         orders2?.reduce((accValue, order) => {

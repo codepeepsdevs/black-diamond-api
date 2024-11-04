@@ -566,6 +566,7 @@ export class EventsService {
       const orders = await this.prisma.order.findMany({
         where: {
           eventId: eventId,
+          paymentStatus: 'SUCCESSFUL',
         },
       });
 
