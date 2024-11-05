@@ -96,7 +96,6 @@ export class OrdersController {
     // order.addonOrder.forEach((addonsOrder) => {
     //   totalAmount += addonsOrder.addon.price;
     // });
-
     await this.emailService.sendOrderReceived(order.email, {
       amountToPay: totalAmount / 100, // total amount is in cents, divide by 100 to convert to dollar
       order,
