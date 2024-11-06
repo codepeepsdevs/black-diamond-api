@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { CreateSubscriptionDto } from './dto/create-subscription.dto';
 import { UnsubscribeDto } from './dto/unsubscribe.dto';
 import { SubscriptionStatusDto } from './dto/subscription-status.dto';
@@ -17,18 +21,27 @@ export class NewsletterService {
       });
 
     if (existingSubscription && existingSubscription.isSubscribed) {
-      return { message: 'Already subscribed.' };
+      throw new InternalServerErrorException('Already subscribed.');
     }
 
-    return this.prisma.newsletterSubscription.upsert({
-      where: { email },
-      update: {
-        unsubscribedAt: null,
-        isSubscribed: true,
-        subscribedAt: new Date(),
-      },
-      create: { email, isSubscribed: true },
-    });
+    try {
+      await this.prisma.newsletterSubscription.upsert({
+        where: { email },
+        update: {
+          unsubscribedAt: null,
+          isSubscribed: true,
+          subscribedAt: new Date(),
+        },
+        create: { email, isSubscribed: true },
+      });
+
+      return { message: 'Subscription to newsletter was successful' };
+    } catch (e) {
+      console.log(e);
+      throw new InternalServerErrorException(
+        'Something went wrong while signing up to newsletter',
+      );
+    }
   }
 
   async unsubscribe(unsubscribeDto: UnsubscribeDto) {
