@@ -33,7 +33,7 @@ import { Response } from 'express';
 import {} from 'src/events/dto/events.dto';
 import { DateRangeQueryDto } from 'src/shared/dto/date-range-query.dto';
 import { EmailsService } from 'src/emails/emails.service';
-import { getPDTDate } from 'src/utils/date-formatter';
+import { getTimeZoneDateRange } from 'src/utils/date-formatter';
 import * as dateFns from 'date-fns';
 
 @Controller('orders')
@@ -100,7 +100,7 @@ export class OrdersController {
       amountToPay: totalAmount / 100, // total amount is in cents, divide by 100 to convert to dollar
       order,
       ticketLink: ticketLink,
-      eventDate: getPDTDate(
+      eventDate: getTimeZoneDateRange(
         new Date(order.event.startTime || Date.now()),
         new Date(order.event.endTime || Date.now()),
       ),

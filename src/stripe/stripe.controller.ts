@@ -10,7 +10,7 @@ import { ConfigService } from '@nestjs/config';
 import { OrdersService } from 'src/orders/orders.service';
 import { EmailsService } from 'src/emails/emails.service';
 import { FRONTEND_URL } from 'src/constants';
-import { getPDTDate } from 'src/utils/date-formatter';
+import { getTimeZoneDateRange } from 'src/utils/date-formatter';
 import * as dateFns from 'date-fns';
 
 @Controller('stripe')
@@ -76,7 +76,7 @@ export class StripeController {
       await this.emailService.sendOrderConfirmed(order.email, {
         order,
         ticketLink: ticketLink,
-        eventDate: getPDTDate(
+        eventDate: getTimeZoneDateRange(
           new Date(order.event.startTime || Date.now()),
           new Date(order.event.endTime || Date.now()),
         ),

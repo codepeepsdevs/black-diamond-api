@@ -312,7 +312,13 @@ export class EventsService {
             _count: true,
             ticketTypes: {
               include: {
-                tickets: true,
+                tickets: {
+                  where: {
+                    order: {
+                      paymentStatus: 'SUCCESSFUL',
+                    },
+                  },
+                },
               },
             },
           },
@@ -354,7 +360,7 @@ export class EventsService {
           eventGross =
             eventGross + ticketType.price * ticketType.tickets.length;
 
-          totalTickets = totalSales + ticketType.quantity;
+          totalTickets = totalTickets + ticketType.quantity;
           totalSales = totalSales + ticketType.tickets.length;
         });
 
