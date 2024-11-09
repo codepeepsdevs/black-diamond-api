@@ -310,7 +310,7 @@ model EventAddons {
   image                   String
   minimumQuantityPerOrder Int
   maximumQuantityPerOrder Int
-  startTime               DateTime // TODO: What does event add start and end time mean?
+  startTime               DateTime
   endTime                 DateTime
   price                   Float
   // showSaleAndStatusOnCheckout Boolean  @default(false)

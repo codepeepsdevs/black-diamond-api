@@ -15,7 +15,7 @@ import {
   UpdateEventDto,
   UpdatEventTicketTypeDto,
 } from './dto/events.dto';
-import { Event, TicketType } from '@prisma/client';
+import { Event, Prisma, TicketType } from '@prisma/client';
 import { PaginationQueryDto } from 'src/shared/dto/pagination-query.dto';
 import { EventStatusPaginationQueryDto as EventsPaginationQueryDto } from './dto/events.dto';
 import { getPagination } from 'src/utils/get-pagination';
@@ -188,26 +188,27 @@ export class EventsService {
 
       const { skip, take } = getPagination({ _page, _limit });
       const nowInNewYorkUTC = getCurrentNewYorkDateTimeInUTC();
+      const whereObject: Prisma.EventWhereInput = {
+        isPublished: true,
+        name: {
+          contains: search,
+          mode: 'insensitive',
+        },
+        startTime:
+          eventStatus === 'past'
+            ? {
+                lt: nowInNewYorkUTC,
+              }
+            : eventStatus === 'upcoming'
+              ? {
+                  gt: nowInNewYorkUTC,
+                }
+              : undefined,
+      };
 
       const [events, eventsCount] = await Promise.all([
         this.prisma.event.findMany({
-          where: {
-            isPublished: true,
-            name: {
-              contains: search,
-              mode: 'insensitive',
-            },
-            startTime:
-              eventStatus === 'past'
-                ? {
-                    lt: nowInNewYorkUTC,
-                  }
-                : eventStatus === 'upcoming'
-                  ? {
-                      gt: nowInNewYorkUTC,
-                    }
-                  : undefined,
-          },
+          where: { ...whereObject },
           include: {
             _count: true,
             ticketTypes: {
@@ -223,23 +224,7 @@ export class EventsService {
           },
         }),
         this.prisma.event.count({
-          where: {
-            isPublished: true,
-            name: {
-              contains: search,
-              mode: 'insensitive',
-            },
-            startTime:
-              eventStatus === 'past'
-                ? {
-                    lt: nowInNewYorkUTC,
-                  }
-                : eventStatus === 'upcoming'
-                  ? {
-                      gt: nowInNewYorkUTC,
-                    }
-                  : undefined,
-          },
+          where: { ...whereObject },
           take,
           skip,
         }),
@@ -289,25 +274,26 @@ export class EventsService {
 
       const { skip, take } = getPagination({ _page, _limit });
       const nowInNewYorkUTC = getCurrentNewYorkDateTimeInUTC();
+      const whereObject: Prisma.EventWhereInput = {
+        name: {
+          contains: search,
+          mode: 'insensitive',
+        },
+        startTime:
+          eventStatus === 'past'
+            ? {
+                lt: nowInNewYorkUTC,
+              }
+            : eventStatus === 'upcoming'
+              ? {
+                  gt: nowInNewYorkUTC,
+                }
+              : undefined,
+      };
 
       const [events, eventsCount] = await Promise.all([
         this.prisma.event.findMany({
-          where: {
-            name: {
-              contains: search,
-              mode: 'insensitive',
-            },
-            startTime:
-              eventStatus === 'past'
-                ? {
-                    lt: nowInNewYorkUTC,
-                  }
-                : eventStatus === 'upcoming'
-                  ? {
-                      gt: nowInNewYorkUTC,
-                    }
-                  : undefined,
-          },
+          where: { ...whereObject },
           include: {
             _count: true,
             ticketTypes: {
@@ -330,20 +316,7 @@ export class EventsService {
         }),
         this.prisma.event.count({
           where: {
-            name: {
-              contains: search,
-              mode: 'insensitive',
-            },
-            startTime:
-              eventStatus === 'past'
-                ? {
-                    lt: nowInNewYorkUTC,
-                  }
-                : eventStatus === 'upcoming'
-                  ? {
-                      gt: nowInNewYorkUTC,
-                    }
-                  : undefined,
+            ...whereObject,
           },
           take,
           skip,
@@ -557,6 +530,7 @@ export class EventsService {
     ticketTypeId: TicketType['id'],
     dto: UpdatEventTicketTypeDto,
   ) {
+    console.log(dto);
     const event = await this.prisma.ticketType.update({
       where: {
         id: ticketTypeId,

@@ -17,7 +17,7 @@ import {
   UserOrderPaginationDto,
 } from './dto/orders.dto';
 // import { PaginationQueryDto } from 'src/shared/dto/pagination-query.dto';
-import { Order, TicketType, User } from '@prisma/client';
+import { Order, Prisma, TicketType, User } from '@prisma/client';
 import { StripeService } from 'src/stripe/stripe.service';
 import { EmailsService } from 'src/emails/emails.service';
 import { ConfigService } from '@nestjs/config';
@@ -277,69 +277,22 @@ export class OrdersService {
     const { page: _page, limit: _limit } = paginationQuery;
     const { skip, take } = getPagination({ _page, _limit });
     const nowInNewYorkUTC = getCurrentNewYorkDateTimeInUTC();
-    const userOrders = await this.prisma.order.findMany({
-      where: {
-        userId,
-        AND: {
-          event: {
-            startTime: {
-              gt: nowInNewYorkUTC,
-            },
-          },
-          paymentStatus: 'SUCCESSFUL',
-        },
-      },
-      include: {
-        event: true,
-        tickets: {
-          include: {
-            ticketType: true,
-          },
-        },
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-      skip,
-      take,
-    });
-    const orderCount = await this.prisma.order.count({
-      where: {
-        userId,
-        AND: {
-          event: {
-            startTime: {
-              gt: nowInNewYorkUTC,
-            },
-          },
-          paymentStatus: 'SUCCESSFUL',
-        },
-      },
-    });
 
-    return { userOrders, orderCount };
-  }
-
-  async getUserPastEventsOrders(
-    userId: User['id'],
-    paginationQuery: UserOrderPaginationDto,
-  ) {
-    const { page: _page, limit: _limit } = paginationQuery;
-    const { skip, take } = getPagination({ _page, _limit });
-    const nowInNewYorkUTC = getCurrentNewYorkDateTimeInUTC();
-    try {
-      const userOrders = await this.prisma.order.findMany({
-        where: {
-          userId,
-          AND: {
-            event: {
-              startTime: {
-                lt: nowInNewYorkUTC,
-              },
-            },
-            paymentStatus: 'SUCCESSFUL',
+    const whereObject: Prisma.OrderWhereInput = {
+      userId,
+      AND: {
+        event: {
+          startTime: {
+            gt: nowInNewYorkUTC,
           },
         },
+        paymentStatus: 'SUCCESSFUL',
+      },
+    };
+
+    const [userOrders, orderCount] = await Promise.all([
+      this.prisma.order.findMany({
+        where: { ...whereObject },
         include: {
           event: true,
           tickets: {
@@ -353,21 +306,61 @@ export class OrdersService {
         },
         skip,
         take,
-      });
-
-      const orderCount = await this.prisma.order.count({
+      }),
+      this.prisma.order.count({
         where: {
-          userId,
-          AND: {
-            event: {
-              startTime: {
-                lt: nowInNewYorkUTC,
-              },
-            },
-            paymentStatus: 'SUCCESSFUL',
+          ...whereObject,
+        },
+      }),
+    ]);
+
+    return { userOrders, orderCount };
+  }
+
+  async getUserPastEventsOrders(
+    userId: User['id'],
+    paginationQuery: UserOrderPaginationDto,
+  ) {
+    const { page: _page, limit: _limit } = paginationQuery;
+    const { skip, take } = getPagination({ _page, _limit });
+    const nowInNewYorkUTC = getCurrentNewYorkDateTimeInUTC();
+
+    const whereObject: Prisma.OrderWhereInput = {
+      userId,
+      AND: {
+        event: {
+          startTime: {
+            lt: nowInNewYorkUTC,
           },
         },
-      });
+        paymentStatus: 'SUCCESSFUL',
+      },
+    };
+
+    try {
+      const [userOrders, orderCount] = await Promise.all([
+        this.prisma.order.findMany({
+          where: { ...whereObject },
+          include: {
+            event: true,
+            tickets: {
+              include: {
+                ticketType: true,
+              },
+            },
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+          skip,
+          take,
+        }),
+        this.prisma.order.count({
+          where: {
+            ...whereObject,
+          },
+        }),
+      ]);
 
       return { userOrders, orderCount };
     } catch (e) {
@@ -411,27 +404,29 @@ export class OrdersService {
     } = query;
     const { skip, take } = getPagination({ _page, _limit });
     const nowInNewYorkUTC = getCurrentNewYorkDateTimeInUTC();
+    const whereObject: Prisma.OrderWhereInput = {
+      event: {
+        startTime:
+          eventStatus === 'past'
+            ? {
+                lt: nowInNewYorkUTC,
+              }
+            : eventStatus === 'upcoming'
+              ? {
+                  gt: nowInNewYorkUTC,
+                }
+              : undefined,
+      },
+      createdAt: {
+        gte: dateFns.startOfDay(startDate),
+        lte: dateFns.endOfDay(endDate),
+      },
+    };
+    console.log(whereObject);
     try {
       const [orders, ordersCount] = await Promise.all([
         this.prisma.order.findMany({
-          where: {
-            event: {
-              startTime:
-                eventStatus === 'past'
-                  ? {
-                      lt: nowInNewYorkUTC,
-                    }
-                  : eventStatus === 'upcoming'
-                    ? {
-                        gt: nowInNewYorkUTC,
-                      }
-                    : undefined,
-            },
-            createdAt: {
-              gte: startDate,
-              lte: endDate,
-            },
-          },
+          where: { ...whereObject },
           include: {
             tickets: {
               include: {
@@ -449,22 +444,7 @@ export class OrdersService {
         }),
         this.prisma.order.count({
           where: {
-            event: {
-              startTime:
-                eventStatus === 'past'
-                  ? {
-                      lt: nowInNewYorkUTC,
-                    }
-                  : eventStatus === 'upcoming'
-                    ? {
-                        gt: nowInNewYorkUTC,
-                      }
-                    : undefined,
-            },
-            createdAt: {
-              gte: startDate,
-              lte: endDate,
-            },
+            ...whereObject,
           },
         }),
       ]);
