@@ -582,8 +582,8 @@ export class OrdersService {
       });
 
       return {
-        success: true,
         message: 'Ticket details has been successfully filled',
+        orderId: order.id,
       };
     } catch (e) {
       throw new InternalServerErrorException(
