@@ -22,12 +22,16 @@ async function bootstrap() {
 
   app.use(cookieParser());
 
+  const devOrigin =
+    process.env.NODE_ENV === 'development'
+      ? ['http://localhost:3000', 'http://localhost:3001']
+      : [];
   app.enableCors({
     origin: [
-      'http://localhost:3000',
-      'http://localhost:3001',
+      ...devOrigin,
       'https://www.eventsbyblackdiamond.com',
       'https://eventsbyblackdiamond.com',
+      'https://black-diamond-client-dev.vercel.app',
     ],
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
     allowedHeaders: ['Content-Type', 'Authorization'],
@@ -92,4 +96,3 @@ bootstrap();
 //   await app.listen(5000);
 // }
 // bootstrap();
-

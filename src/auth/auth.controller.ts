@@ -200,16 +200,11 @@ export class AuthenticationController {
     }
   }
 
-  @UseFilters(OAuthExceptionFilter)
   @Get('/google/redirect')
   @UseGuards(GoogleAuthGuard)
-  async googleAuthRedirect(
-    @Req() request: RequestWithUser,
-    // @Res({ passthrough: true }) response: Response,
-  ): Promise<any> {
+  async googleAuthRedirect(@Req() request: RequestWithUser): Promise<any> {
+    const frontendUrl = this.configService.get(FRONTEND_URL);
     try {
-      const frontendUrl = this.configService.get(FRONTEND_URL);
-
       const user = await this.authenticationService.googleAuthentication(
         request.user,
       );
@@ -220,24 +215,55 @@ export class AuthenticationController {
         expiresIn: this.configService.get(JWT_ACCESS_TOKEN_EXPIRATION_TIME),
       });
 
-      // return {
-      //   accessToken,
-      // };
-      request.res.redirect(
+      return request.res.redirect(
         `${frontendUrl}/oauth-success-redirect?accessToken=${accessToken}`,
       );
     } catch (error) {
-      console.log(error);
-      if (error instanceof CustomUnauthorizedException) {
-        throw error; // This will be caught by the OAuthExceptionFilter
-      } else {
-        throw new HttpException(
-          'An error occurred',
-          HttpStatus.INTERNAL_SERVER_ERROR,
-        );
-      }
+      const errorMessage = error.message || 'An error occurred';
+      return request.res.redirect(
+        `${frontendUrl}/oauth-failed-redirect?errorMessage=${encodeURIComponent(errorMessage)}`,
+      );
     }
   }
+
+  // @UseFilters(OAuthExceptionFilter)
+  // @Get('/google/redirect')
+  // @UseGuards(GoogleAuthGuard)
+  // async googleAuthRedirect(
+  //   @Req() request: RequestWithUser,
+  //   // @Res({ passthrough: true }) response: Response,
+  // ): Promise<any> {
+  //   try {
+  //     const frontendUrl = this.configService.get(FRONTEND_URL);
+
+  //     const user = await this.authenticationService.googleAuthentication(
+  //       request.user,
+  //     );
+
+  //     const payload: TokenPayload = { userId: user.id };
+  //     const accessToken = this.jwtService.sign(payload, {
+  //       secret: this.configService.get(JWT_ACCESS_TOKEN_SECRET),
+  //       expiresIn: this.configService.get(JWT_ACCESS_TOKEN_EXPIRATION_TIME),
+  //     });
+
+  //     // return {
+  //     //   accessToken,
+  //     // };
+  //     request.res.redirect(
+  //       `${frontendUrl}/oauth-success-redirect?accessToken=${accessToken}`,
+  //     );
+  //   } catch (error) {
+  //     console.log(error);
+  //     if (error instanceof CustomUnauthorizedException) {
+  //       throw error; // This will be caught by the OAuthExceptionFilter
+  //     } else {
+  //       throw new HttpException(
+  //         'An error occurred',
+  //         HttpStatus.INTERNAL_SERVER_ERROR,
+  //       );
+  //     }
+  //   }
+  // }
 
   @Get('resend-verification-email/')
   async sendVerificationEmail(@Body('email') dto: VerifyEmailBody) {
@@ -259,3 +285,4 @@ export class AuthenticationController {
     return this.authenticationService.resetPassword(dto);
   }
 }
+

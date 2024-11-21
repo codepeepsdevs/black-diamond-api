@@ -14,6 +14,7 @@ import {
   CreateOrderDto,
   // AssignGuestOrderDto,
   FillTicketDetailsDto,
+  GenerateOrderReportQueryDto,
   GetOrdersQuery,
   GetRevenueQueryDto,
   UserOrderPaginationDto,
@@ -32,7 +33,7 @@ import { Response } from 'express';
 import {} from 'src/events/dto/events.dto';
 import { DateRangeQueryDto } from 'src/shared/dto/date-range-query.dto';
 import { EmailsService } from 'src/emails/emails.service';
-import { getPDTDate } from 'src/utils/date-formatter';
+import { getTimeZoneDateRange } from 'src/utils/date-formatter';
 import * as dateFns from 'date-fns';
 
 @Controller('orders')
@@ -85,22 +86,39 @@ export class OrdersController {
     // After successful order placement, send order received email
     const ticketLink = `${this.configService.get(FRONTEND_URL)}/tickets/`; // just take them to tickets page.
     const totalAmount = allLineItems.reduce((accValue, currItem) => {
-      console.log(accValue, currItem);
       return accValue + Number(currItem.price_data.unit_amount);
     }, 0);
-
+    const ticketGroup: Record<
+      string,
+      {
+        name: string;
+        quantity: number;
+        price: number;
+      }
+    > = order.tickets.reduce((group, ticket) => {
+      if (group[ticket.ticketType.name]) {
+        group[ticket.ticketType.name].quantity =
+          group[ticket.ticketType.name].quantity + 1;
+      } else {
+        group[ticket.ticketType.name] = {
+          name: ticket.ticketType.name,
+          quantity: 1,
+          price: ticket.ticketType.price,
+        };
+      }
+      return group;
+    }, {});
     // order.tickets.forEach((ticket) => {
     //   totalAmount += ticket.ticketType.price;
     // });
     // order.addonOrder.forEach((addonsOrder) => {
     //   totalAmount += addonsOrder.addon.price;
     // });
-
     await this.emailService.sendOrderReceived(order.email, {
       amountToPay: totalAmount / 100, // total amount is in cents, divide by 100 to convert to dollar
       order,
       ticketLink: ticketLink,
-      eventDate: getPDTDate(
+      eventDate: getTimeZoneDateRange(
         new Date(order.event.startTime || Date.now()),
         new Date(order.event.endTime || Date.now()),
       ),
@@ -108,6 +126,7 @@ export class OrdersController {
         new Date(order.createdAt || Date.now()),
         'MMMM d, yyyy',
       ),
+      ticketGroups: Object.values(ticketGroup),
     });
     res
       .status(200)
@@ -140,6 +159,27 @@ export class OrdersController {
   ) {
     const userId = req.user.id;
     return this.ordersService.getUserOrders(userId, paginationQuery);
+  }
+
+  @UseGuards(JwtAuthenticationGuard, RolesGuard)
+  @Roles()
+  @Get('generate-order-report')
+  async generateOrderReport(
+    @Res() res: Response,
+    @Query() query: GenerateOrderReportQueryDto,
+  ) {
+    const buffer = await this.ordersService.generateOrderReport(query);
+
+    // Step 4: Send the buffer as a downloadable file
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="Order_Report_${query.startDate || ''}-${query.endDate || ''}.xlsx"`,
+    );
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    res.send(buffer);
   }
 
   @UseGuards(JwtAuthenticationGuard, RolesGuard)

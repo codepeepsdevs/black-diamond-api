@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   HttpException,
   HttpStatus,
   Injectable,
@@ -12,13 +13,21 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from 'src/prisma.service';
 
 import { UsersService } from 'src/users/users.service';
-import { TokenPayload } from '../types/tokenPayload.interface';
+import {
+  CompleeteSignupPayload,
+  TokenPayload,
+} from '../types/tokenPayload.interface';
 import { CreateUserDto } from 'src/users/dto/create-user.dto';
 
 import { excludePrisma } from 'src/helpers/exclude.helper';
 import { CompleteSignupDto, ResetPasswordDto } from '../dto/auth.dto';
 import { EmailsService } from 'src/emails/emails.service';
-import { EMAIL_EXPIRY_TIME, JWT_ACCESS_TOKEN_SECRET } from 'src/constants';
+import {
+  EMAIL_EXPIRY_TIME,
+  FRONTEND_URL,
+  JWT_ACCESS_TOKEN_SECRET,
+  JWT_EMAIL_SECRET,
+} from 'src/constants';
 import { CustomUnauthorizedException } from 'src/exceptions/custom-unauthorized.exception';
 import { OauthUser } from '../types/oauthUser';
 
@@ -77,7 +86,20 @@ export class AuthenticationService {
   }
 
   public async completeSignup(dto: CompleteSignupDto) {
-    const userExists = await this.usersService.findOneByEmail(dto.email);
+    let payload: CompleeteSignupPayload = null;
+    try {
+      payload = await this.jwtService.verifyAsync<CompleeteSignupPayload>(
+        dto.token,
+        {
+          secret: this.configService.get(JWT_EMAIL_SECRET),
+        },
+      );
+    } catch (e) {
+      throw new BadRequestException(
+        'The link is invalid or has expired, please login to request for a new link',
+      );
+    }
+    const userExists = await this.usersService.findOneByEmail(payload.email);
 
     if (!userExists) {
       throw new HttpException(
@@ -86,14 +108,20 @@ export class AuthenticationService {
       );
     }
 
+    if (userExists.emailConfirmed) {
+      throw new ForbiddenException(
+        'Password for the user has already been set',
+      );
+    }
+
     const hashedPassword = await bcrypt.hash(dto.password, 10);
     try {
       const user = await this.prisma.user.update({
         where: {
-          email: dto.email,
+          email: payload.email,
         },
         data: {
-          email: dto.email,
+          email: payload.email,
           firstname: dto.firstname,
           lastname: dto.lastname,
           password: hashedPassword,
@@ -130,6 +158,22 @@ export class AuthenticationService {
 
     if (!user) throw new UnauthorizedException('Invalid credentials');
 
+    const isDefaultPassword = await bcrypt.compare(
+      'DEFAULT_PASSWORD',
+      user.password,
+    );
+    // if a user account was created from placing an order and password has not been set
+    // i.e emailConfirmed is false and authentication method is email and the password is default_password,
+    // then tell the user to set their password using the email previously sent or send another
+    if (
+      !user.emailConfirmed &&
+      user.authMethod === 'EMAIL' &&
+      isDefaultPassword
+    ) {
+      await this.sendCompleteSignupLink(user.email);
+      throw new ForbiddenException('complete signup');
+    }
+
     try {
       await this.verifyPassword(plainTextPassword, user.password);
     } catch (error) {
@@ -139,10 +183,11 @@ export class AuthenticationService {
       );
     }
 
+    // If a user account was created normally, i.e not from placing an order and email has not been confirmed, send confirmation email
     if (!user.emailConfirmed) {
       this.sendVerificationEmail(email);
 
-      throw new HttpException('email not confirmed', HttpStatus.FORBIDDEN);
+      throw new HttpException('email not verified', HttpStatus.FORBIDDEN);
     }
 
     if (user.authMethod !== 'EMAIL') {
@@ -389,7 +434,7 @@ export class AuthenticationService {
       { email: user.email },
 
       {
-        expiresIn: '10m', // Token expires in 10 minutes
+        expiresIn: this.configService.get(EMAIL_EXPIRY_TIME), // Token expires in 15 minutes
         secret: this.configService.get<string>(JWT_ACCESS_TOKEN_SECRET),
       },
     );
@@ -486,7 +531,7 @@ export class AuthenticationService {
     if (!user.emailConfirmed) {
       const payload: TokenPayload = { userId: user.id };
       const token = this.jwtService.sign(payload, {
-        expiresIn: this.configService.get<string>(EMAIL_EXPIRY_TIME) + 's', // 10 minutes = 60s * 10
+        expiresIn: this.configService.get<string>(EMAIL_EXPIRY_TIME), // 10 minutes = 60s * 10
         secret: this.configService.get<string>(JWT_ACCESS_TOKEN_SECRET),
       });
 
@@ -509,6 +554,18 @@ export class AuthenticationService {
     }
 
     return;
+  }
+
+  async sendCompleteSignupLink(email: string) {
+    const payload: CompleeteSignupPayload = {
+      email: email,
+    };
+    const emailToken = await this.jwtService.signAsync(payload, {
+      secret: this.configService.get(JWT_EMAIL_SECRET),
+      expiresIn: '2h', // Complete signup link expires in 2 hours
+    });
+    const completeSignupLink = `${this.configService.get(FRONTEND_URL)}/complete-signup?token=${emailToken}`;
+    await this.emailsService.sendCompleteSignup(email, completeSignupLink);
   }
 
   // generate otp

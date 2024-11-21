@@ -10,7 +10,7 @@ import { ConfigService } from '@nestjs/config';
 import { OrdersService } from 'src/orders/orders.service';
 import { EmailsService } from 'src/emails/emails.service';
 import { FRONTEND_URL } from 'src/constants';
-import { getPDTDate } from 'src/utils/date-formatter';
+import { getTimeZoneDateRange } from 'src/utils/date-formatter';
 import * as dateFns from 'date-fns';
 
 @Controller('stripe')
@@ -72,12 +72,32 @@ export class StripeController {
         paymentIntent.amount_received / 100, // convert from cent to dollarss
       );
 
-      // TODO: Send email for them to fill in their ticket details
+      const ticketGroup: Record<
+        string,
+        {
+          name: string;
+          quantity: number;
+          price: number;
+        }
+      > = order.tickets.reduce((group, ticket) => {
+        if (group[ticket.ticketType.name]) {
+          group[ticket.ticketType.name].quantity =
+            group[ticket.ticketType.name].quantity + 1;
+        } else {
+          group[ticket.ticketType.name] = {
+            name: ticket.ticketType.name,
+            quantity: 1,
+            price: ticket.ticketType.price,
+          };
+        }
+        return group;
+      }, {});
+
       const ticketLink = `${this.configService.get(FRONTEND_URL)}/tickets/${order.id}/fill-details`; // should automatically redirect if the user has filled it before.
       await this.emailService.sendOrderConfirmed(order.email, {
         order,
         ticketLink: ticketLink,
-        eventDate: getPDTDate(
+        eventDate: getTimeZoneDateRange(
           new Date(order.event.startTime || Date.now()),
           new Date(order.event.endTime || Date.now()),
         ),
@@ -85,6 +105,7 @@ export class StripeController {
           new Date(order.createdAt || Date.now()),
           'MMMM d, yyyy',
         ),
+        ticketGroups: Object.values(ticketGroup),
       });
     }
 
