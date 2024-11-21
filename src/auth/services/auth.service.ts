@@ -256,8 +256,12 @@ export class AuthenticationService {
           password: 'DEFAULT_PASSWORD',
           emailConfirmed: true,
           authMethod: 'GOOGLE',
-          address: {},
-          billingInfo: {},
+          address: {
+            create: {},
+          },
+          billingInfo: {
+            create: {},
+          },
         },
         select: {
           id: true,
