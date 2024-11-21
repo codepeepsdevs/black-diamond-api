@@ -72,6 +72,27 @@ export class StripeController {
         paymentIntent.amount_received / 100, // convert from cent to dollarss
       );
 
+      const ticketGroup: Record<
+        string,
+        {
+          name: string;
+          quantity: number;
+          price: number;
+        }
+      > = order.tickets.reduce((group, ticket) => {
+        if (group[ticket.ticketType.name]) {
+          group[ticket.ticketType.name].quantity =
+            group[ticket.ticketType.name].quantity + 1;
+        } else {
+          group[ticket.ticketType.name] = {
+            name: ticket.ticketType.name,
+            quantity: 1,
+            price: ticket.ticketType.price,
+          };
+        }
+        return group;
+      }, {});
+
       const ticketLink = `${this.configService.get(FRONTEND_URL)}/tickets/${order.id}/fill-details`; // should automatically redirect if the user has filled it before.
       await this.emailService.sendOrderConfirmed(order.email, {
         order,
@@ -84,6 +105,7 @@ export class StripeController {
           new Date(order.createdAt || Date.now()),
           'MMMM d, yyyy',
         ),
+        ticketGroups: Object.values(ticketGroup),
       });
     }
 

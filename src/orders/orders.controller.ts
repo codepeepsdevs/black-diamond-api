@@ -88,7 +88,26 @@ export class OrdersController {
     const totalAmount = allLineItems.reduce((accValue, currItem) => {
       return accValue + Number(currItem.price_data.unit_amount);
     }, 0);
-
+    const ticketGroup: Record<
+      string,
+      {
+        name: string;
+        quantity: number;
+        price: number;
+      }
+    > = order.tickets.reduce((group, ticket) => {
+      if (group[ticket.ticketType.name]) {
+        group[ticket.ticketType.name].quantity =
+          group[ticket.ticketType.name].quantity + 1;
+      } else {
+        group[ticket.ticketType.name] = {
+          name: ticket.ticketType.name,
+          quantity: 1,
+          price: ticket.ticketType.price,
+        };
+      }
+      return group;
+    }, {});
     // order.tickets.forEach((ticket) => {
     //   totalAmount += ticket.ticketType.price;
     // });
@@ -107,6 +126,7 @@ export class OrdersController {
         new Date(order.createdAt || Date.now()),
         'MMMM d, yyyy',
       ),
+      ticketGroups: Object.values(ticketGroup),
     });
     res
       .status(200)

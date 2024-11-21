@@ -422,7 +422,6 @@ export class OrdersService {
         lte: dateFns.endOfDay(endDate),
       },
     };
-    console.log(whereObject);
     try {
       const [orders, ordersCount] = await Promise.all([
         this.prisma.order.findMany({

@@ -155,7 +155,7 @@ export class EventsService {
     });
 
     if (!promocode) {
-      throw new NotFoundException('Promocode not found');
+      throw new NotFoundException('Invalid promocode');
     }
 
     return promocode;

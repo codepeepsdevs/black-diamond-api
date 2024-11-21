@@ -137,11 +137,11 @@
           <p><%= eventDate %></p>
           <p>Order #<%= order.id %></p>
           <p>Order date: <%= orderDate %></p>
-          <% if (order && order.tickets && order.tickets.length > 0) { %>
-            <% order.tickets.forEach(function(ticket) { %>
+          <% if (ticketGroups && ticketGroups.length > 0) { %>
+            <% ticketGroups.forEach(function(group) { %>
               <div style="display: flex; justify-content: space-between; column-gap: 40px; width: 100%;">
-                <p>1 x <%= ticket.ticketType.name %></p>
-                <p>$<%= ticket.ticketType.price %></p>
+                <p><%= group.quantity %> x <%= group.name %></p>
+                <p>$<%= group.price %></p>
               </div>
             <% }); %>
           <% } else { %>
