@@ -135,6 +135,8 @@ export class UserOrderPaginationDto {
 
 export class GetRevenueQueryDto extends DateRangeQueryDto {}
 
+export class GenerateOrderReportQueryDto extends DateRangeQueryDto {}
+
 export class GetOrdersQuery extends DateRangeQueryDto {
   @IsOptional()
   page?: string;

@@ -28,4 +28,3 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   //   return type === 'Bearer' ? token : undefined;
   // }
 }
-

@@ -11,20 +11,17 @@ import { PrismaService } from 'src/prisma.service';
 import {
   CreateOrderDto,
   FillTicketDetailsDto,
+  GenerateOrderReportQueryDto,
   GetOrdersQuery,
   GetRevenueQueryDto,
   UserOrderPaginationDto,
 } from './dto/orders.dto';
 // import { PaginationQueryDto } from 'src/shared/dto/pagination-query.dto';
-import { Order, User } from '@prisma/client';
+import { Order, Prisma, TicketType, User } from '@prisma/client';
 import { StripeService } from 'src/stripe/stripe.service';
 import { EmailsService } from 'src/emails/emails.service';
 import { ConfigService } from '@nestjs/config';
-import {
-  FRONTEND_URL,
-  JWT_ACCESS_TOKEN_SECRET,
-  JWT_EMAIL_SECRET,
-} from 'src/constants';
+import { JWT_ACCESS_TOKEN_SECRET } from 'src/constants';
 import { JwtService } from '@nestjs/jwt';
 import { TokenPayload } from 'src/auth/types/tokenPayload.interface';
 import { UsersService } from 'src/users/users.service';
@@ -33,6 +30,13 @@ import * as dateFns from 'date-fns';
 import { getPagination } from 'src/utils/get-pagination';
 import { DateRangeQueryDto } from 'src/shared/dto/date-range-query.dto';
 import { customAlphabet } from 'nanoid';
+import {
+  getCurrentNewYorkDateTimeInUTC,
+  getEventStatus,
+} from 'src/utils/date-formatter';
+import { EventsService } from 'src/events/events.service';
+import * as XLSX from 'xlsx';
+import { AuthenticationService } from 'src/auth/services/auth.service';
 
 const nanoid = customAlphabet('1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ', 12);
 
@@ -45,49 +49,27 @@ export class OrdersService {
     private readonly configService: ConfigService,
     private readonly jwtService: JwtService,
     private readonly userService: UsersService,
+    private readonly eventService: EventsService,
+    private readonly authService: AuthenticationService,
   ) {}
-
-  // async createOrder(userId: string, dto: CreateOrderDto) {
-  //   const { orderItems } = dto;
-
-  //   const orderItemsData = await Promise.all(
-  //     orderItems.map(async (item) => {
-  //       const ticketType = await this.prisma.ticketType.findUnique({
-  //         where: { id: item.ticketTypeId },
-  //       });
-
-  //       return {
-  //         ticketTypeId: item.ticketTypeId,
-  //         quantity: item.quantity,
-  //         unitPrice: ticketType.price,
-  //         totalPrice: ticketType.price * item.quantity,
-  //       };
-  //     }),
-  //   );
-
-  //   const totalAmount = orderItemsData.reduce((sum, item) => {
-  //     return sum + item.totalPrice;
-  //   }, 0);
-
-  //   const order = await this.prisma.order.create({
-  //     data: {
-  //       userId,
-  //       orderItems: {
-  //         create: orderItemsData,
-  //       },
-  //       totalAmount,
-  //     },
-  //     include: { orderItems: true },
-  //   });
-
-  //   return order;
-  // }
 
   async createOrder(dto: CreateOrderDto, token: string | undefined) {
     let user: User | null = null;
     let newAccount = false;
+    const event = await this.eventService.getEvent(dto.eventId);
+    if (event.eventStatus === 'PAST') {
+      throw new InternalServerErrorException(
+        'Event is in the past, cannot book an event in the past',
+      );
+    }
+    if (!event.isPublished) {
+      throw new InternalServerErrorException(
+        'This event is not yet taking orders',
+      );
+    }
     return await this.prisma.$transaction(
       async (prisma) => {
+        // if a token exists, place the order for the user the token belongs to
         if (token) {
           try {
             const payload: TokenPayload = await this.jwtService.verifyAsync(
@@ -122,6 +104,7 @@ export class OrdersService {
                   email: dto.email,
                   password: hashedPassword,
                   authMethod: 'EMAIL',
+                  emailConfirmed: false,
                   // Create related Address and BillingInfo with just their IDs
                   address: {
                     create: {},
@@ -150,14 +133,36 @@ export class OrdersService {
         const allTicketOrders: { ticketTypeId: string }[] = [];
         const addonsOrders: { addonId: string; quantity: number }[] = [];
 
-        // TODO: Handle ticket max sales
-        dto.ticketOrders.forEach((ticket) => {
-          for (let i = 0; i < ticket.quantity; i++) {
+        // dto.ticketOrders.forEach(async (ticketTypeOrder) => {
+        // using for in loop because throwing error in a callback in javascript for rolling back the transaction occurs in another context
+        for (const ticketTypeOrder of dto.ticketOrders) {
+          const { quantity: totalQuantity, name: ticketName } =
+            event.ticketTypes.find(
+              (ticketType) => ticketType.id === ticketTypeOrder.ticketTypeId,
+            );
+          // get the number of tickets for a tickettype of this event that has already been successfully paid for
+          const soldQuantity = await this.prisma.ticket.count({
+            where: {
+              ticketTypeId: ticketTypeOrder.ticketTypeId,
+              order: {
+                paymentStatus: 'SUCCESSFUL',
+                eventId: dto.eventId,
+              },
+            },
+          });
+          const quantityAvailable = totalQuantity - soldQuantity;
+          if (ticketTypeOrder.quantity > quantityAvailable) {
+            throw new InternalServerErrorException(
+              `Unable to place order, only ${quantityAvailable} slot(s) are available for ${ticketName} ticket type, please go back and edit your order`,
+            );
+          }
+          for (let i = 0; i < ticketTypeOrder.quantity; i++) {
             allTicketOrders.push({
-              ticketTypeId: ticket.ticketTypeId,
+              ticketTypeId: ticketTypeOrder.ticketTypeId,
             });
           }
-        });
+        }
+        // });
 
         if (allTicketOrders.length < 1) {
           throw new BadRequestException(
@@ -204,25 +209,8 @@ export class OrdersService {
             },
           });
 
-          // After placing the order, create the payment intent
-          // const { clientSecret } = await this.stripeService.checkout(dto);
-          // const newOrder = await this.getOrder(order.id);
-
-          // TODO: Send email for the user to complete account creation
           if (newAccount) {
-            const emailToken = await this.jwtService.signAsync(
-              {
-                email: dto.email,
-              },
-              {
-                secret: this.configService.get(JWT_EMAIL_SECRET),
-              },
-            );
-            const completeSignupLink = `${this.configService.get(FRONTEND_URL)}/complete-signup?token=${emailToken}`;
-            await this.emailService.sendCompleteSignup(
-              dto.email,
-              completeSignupLink,
-            );
+            await this.authService.sendCompleteSignupLink(dto.email);
           }
 
           return order;
@@ -238,113 +226,6 @@ export class OrdersService {
     );
   }
 
-  // async createGuestOrder(dto: CreateOrderDto) {
-  //   const allTicketOrders: { ticketTypeId: string }[] = [];
-  //   const addonsOrders: { addonId: string; quantity: number }[] = [];
-
-  //   // TODO: Handle ticket max sales
-  //   dto.ticketOrders.forEach((ticket) => {
-  //     for (let i = 0; i < ticket.quantity; i++) {
-  //       allTicketOrders.push({
-  //         ticketTypeId: ticket.ticketTypeId,
-  //       });
-  //     }
-  //   });
-
-  //   if (allTicketOrders.length < 1) {
-  //     throw new BadRequestException(
-  //       'At least one ticket must be placed for order',
-  //     );
-  //   }
-
-  //   if (dto.addonOrders) {
-  //     dto.addonOrders.forEach((addonOrder) => {
-  //       if (addonOrder.quantity > 0) {
-  //         addonsOrders.push(addonOrder);
-  //       }
-  //     });
-  //   }
-
-  //   const order = await this.prisma.order.create({
-  //     data: {
-  //       contactEmail: dto.contactEmail,
-  //       contactName: dto.contactName,
-  //       contactPhone: dto.contactPhone,
-  //       eventId: dto.eventId,
-  //       tickets: {
-  //         create: allTicketOrders,
-  //       },
-  //       addonOrder: {
-  //         create: addonsOrders,
-  //       },
-  //     },
-  //     include: {
-  //       tickets: true,
-  //       addonOrder: true,
-  //     },
-  //   });
-
-  //   const emailData = {
-  //     contactName: order.contactName,
-  //     orderUrl: `${this.configService.get(FRONTEND_URL)}/signup?type=claim-order&orderId=${order.id}`, // Link to the tickets page
-  //     eventName: 'Best Sunny Day Party',
-  //     eventImageUrl: 'https://example.com/event-image.jpg', // URL for the event image
-  //     ticketCount: order.tickets.length, // Number of tickets
-  //     eventDate: 'March 16 - 8pm - March 17 - 12am EDT', // TODO: Event date and time
-  //     orderId: order.id, // Order ID
-  //     orderDate: order.createdAt.toLocaleDateString(), // Date when the order was made
-  //     ticketDetails: [
-  //       { quantity: 1, type: 'Diamond', price: 37.85 },
-  //       { quantity: 1, type: 'General', price: 10.0 },
-  //     ], // List of ticket types and their prices
-  //     totalPrice: 47.85, // Total price of the order
-  //   };
-
-  //   // Send email to the contact details
-  //   try {
-  //     this.emailService.sendDynamic(
-  //       order.contactEmail,
-  //       emailData,
-  //       'purchase/claim-order.ejs',
-  //       'Login/Signup to claim your order',
-  //     );
-  //   } catch (e) {
-  //     console.log('Error sending email.');
-  //   }
-
-  //   // After placing the order, create the payment intent
-  //   const { clientSecret } = await this.stripeService.checkout(dto);
-  //   const newOrder = await this.getOrder(order.id);
-
-  //   return {
-  //     message: 'Order placed successfully',
-  //     data: newOrder,
-  //     clientSecret,
-  //   };
-  // }
-
-  // async assignGuestOrder(dto: AssignGuestOrderDto, userId: string) {
-  //   await this.getOrder(dto.orderId); // would throw if the order is not found
-
-  //   try {
-  //     this.prisma.order.update({
-  //       where: {
-  //         id: dto.orderId,
-  //       },
-  //       data: {
-  //         userId,
-  //       },
-  //     });
-
-  //     return { message: 'Order assigned successfully' };
-  //   } catch (e) {
-  //     console.log(e);
-  //     throw new InternalServerErrorException(
-  //       'An error occurred while assigning the order',
-  //     );
-  //   }
-  // }
-
   async getUserOrders(
     userId: User['id'],
     paginationQuery: UserOrderPaginationDto,
@@ -352,18 +233,22 @@ export class OrdersService {
     const { page: _page, limit: _limit, eventStatus } = paginationQuery;
 
     const { skip, take } = getPagination({ _page, _limit });
-    console.log(skip, take);
+    const nowInNewYorkUTC = getCurrentNewYorkDateTimeInUTC();
     const userOrders = await this.prisma.order.findMany({
       where: {
         userId,
         AND: {
           event: {
-            eventStatus:
+            startTime:
               eventStatus === 'all'
                 ? undefined
                 : eventStatus === 'past'
-                  ? 'PAST'
-                  : 'UPCOMING',
+                  ? {
+                      lt: nowInNewYorkUTC,
+                    }
+                  : {
+                      gt: nowInNewYorkUTC,
+                    },
           },
         },
       },
@@ -391,64 +276,23 @@ export class OrdersService {
   ) {
     const { page: _page, limit: _limit } = paginationQuery;
     const { skip, take } = getPagination({ _page, _limit });
-    console.log(skip, take);
-    const userOrders = await this.prisma.order.findMany({
-      where: {
-        userId,
-        AND: {
-          event: {
-            eventStatus: 'UPCOMING',
-          },
-          paymentStatus: 'SUCCESSFUL',
-        },
-      },
-      include: {
-        event: true,
-        tickets: {
-          include: {
-            ticketType: true,
-          },
-        },
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-      skip,
-      take,
-    });
-    const orderCount = await this.prisma.order.count({
-      where: {
-        userId,
-        AND: {
-          event: {
-            eventStatus: 'UPCOMING',
-          },
-          paymentStatus: 'SUCCESSFUL',
-        },
-      },
-    });
+    const nowInNewYorkUTC = getCurrentNewYorkDateTimeInUTC();
 
-    return { userOrders, orderCount };
-  }
-
-  async getUserPastEventsOrders(
-    userId: User['id'],
-    paginationQuery: UserOrderPaginationDto,
-  ) {
-    const { page: _page, limit: _limit } = paginationQuery;
-    const { skip, take } = getPagination({ _page, _limit });
-    console.log(skip, take);
-    try {
-      const userOrders = await this.prisma.order.findMany({
-        where: {
-          userId,
-          AND: {
-            event: {
-              eventStatus: 'PAST',
-            },
-            paymentStatus: 'SUCCESSFUL',
+    const whereObject: Prisma.OrderWhereInput = {
+      userId,
+      AND: {
+        event: {
+          startTime: {
+            gt: nowInNewYorkUTC,
           },
         },
+        paymentStatus: 'SUCCESSFUL',
+      },
+    };
+
+    const [userOrders, orderCount] = await Promise.all([
+      this.prisma.order.findMany({
+        where: { ...whereObject },
         include: {
           event: true,
           tickets: {
@@ -462,19 +306,61 @@ export class OrdersService {
         },
         skip,
         take,
-      });
-
-      const orderCount = await this.prisma.order.count({
+      }),
+      this.prisma.order.count({
         where: {
-          userId,
-          AND: {
-            event: {
-              eventStatus: 'PAST',
-            },
-            paymentStatus: 'SUCCESSFUL',
+          ...whereObject,
+        },
+      }),
+    ]);
+
+    return { userOrders, orderCount };
+  }
+
+  async getUserPastEventsOrders(
+    userId: User['id'],
+    paginationQuery: UserOrderPaginationDto,
+  ) {
+    const { page: _page, limit: _limit } = paginationQuery;
+    const { skip, take } = getPagination({ _page, _limit });
+    const nowInNewYorkUTC = getCurrentNewYorkDateTimeInUTC();
+
+    const whereObject: Prisma.OrderWhereInput = {
+      userId,
+      AND: {
+        event: {
+          startTime: {
+            lt: nowInNewYorkUTC,
           },
         },
-      });
+        paymentStatus: 'SUCCESSFUL',
+      },
+    };
+
+    try {
+      const [userOrders, orderCount] = await Promise.all([
+        this.prisma.order.findMany({
+          where: { ...whereObject },
+          include: {
+            event: true,
+            tickets: {
+              include: {
+                ticketType: true,
+              },
+            },
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+          skip,
+          take,
+        }),
+        this.prisma.order.count({
+          where: {
+            ...whereObject,
+          },
+        }),
+      ]);
 
       return { userOrders, orderCount };
     } catch (e) {
@@ -504,6 +390,7 @@ export class OrdersService {
       throw new NotFoundException('Order not found');
     }
 
+    order.event['eventStatus'] = getEventStatus(order.event.startTime);
     return order;
   }
 
@@ -516,37 +403,50 @@ export class OrdersService {
       startDate,
     } = query;
     const { skip, take } = getPagination({ _page, _limit });
+    const nowInNewYorkUTC = getCurrentNewYorkDateTimeInUTC();
+    const whereObject: Prisma.OrderWhereInput = {
+      event: {
+        startTime:
+          eventStatus === 'past'
+            ? {
+                lt: nowInNewYorkUTC,
+              }
+            : eventStatus === 'upcoming'
+              ? {
+                  gt: nowInNewYorkUTC,
+                }
+              : undefined,
+      },
+      createdAt: {
+        gte: dateFns.startOfDay(startDate),
+        lte: dateFns.endOfDay(endDate),
+      },
+    };
     try {
-      const orders = await this.prisma.order.findMany({
-        where: {
-          event: {
-            eventStatus:
-              eventStatus === 'past'
-                ? 'PAST'
-                : eventStatus === 'upcoming'
-                  ? 'UPCOMING'
-                  : undefined,
-          },
-          createdAt: {
-            gte: startDate,
-            lte: endDate,
-          },
-        },
-        include: {
-          tickets: {
-            include: {
-              ticketType: true,
+      const [orders, ordersCount] = await Promise.all([
+        this.prisma.order.findMany({
+          where: { ...whereObject },
+          include: {
+            tickets: {
+              include: {
+                ticketType: true,
+              },
             },
+            event: true,
+            user: true,
           },
-          event: true,
-          user: true,
-        },
-        orderBy: {
-          createdAt: 'desc',
-        },
-        skip,
-        take,
-      });
+          orderBy: {
+            createdAt: 'desc',
+          },
+          skip,
+          take,
+        }),
+        this.prisma.order.count({
+          where: {
+            ...whereObject,
+          },
+        }),
+      ]);
 
       const extendedOrder = orders.map((order) => {
         const orderAmount = order.tickets.reduce((accValue, currTicket) => {
@@ -558,7 +458,7 @@ export class OrdersService {
         };
       }, 0);
 
-      return extendedOrder;
+      return { orders: extendedOrder, ordersCount };
     } catch (e) {
       console.log(e);
       throw new HttpException(
@@ -566,6 +466,65 @@ export class OrdersService {
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
+  }
+
+  async generateOrderReport(query: GenerateOrderReportQueryDto) {
+    const { orders } = await this.getOrders(query);
+
+    // Format the data as a worksheet
+    type GroupByTicketType = {
+      [key in TicketType['name']]: {
+        ticketTypeName: string;
+        quantity: number;
+      };
+    };
+    const worksheetData = orders.map((order) => {
+      const groupedTickets: GroupByTicketType = order.tickets.reduce(
+        (group, currTicket) => {
+          if (group[currTicket.ticketType.name]) {
+            group[currTicket.ticketType.name].quantity += 1;
+          } else {
+            group[currTicket.ticketType.name] = {
+              ticketTypeName: currTicket.ticketType.name,
+              quantity: 1,
+            };
+          }
+          return group;
+        },
+        {} as GroupByTicketType,
+      );
+      const lastElementIndex = Object.values(groupedTickets).length - 1;
+      const ticketOrderSummary = Object.values(groupedTickets).reduce(
+        (summary, currGroup, index) => {
+          return (
+            summary +
+            `${currGroup.quantity} ${currGroup.ticketTypeName} Ticket(s) ${index < lastElementIndex ? ', ' : ''}`
+          );
+        },
+        '',
+      );
+      return {
+        ID: order.id,
+        'Order Date': order.createdAt.toDateString(),
+        'Event Name': order.event.name,
+        'Customer Name': `${order.firstName} ${order.lastName}`,
+        Phone: order?.phone || 'N/A',
+        Email: order?.email || 'N/A',
+        'Ticket Order Summary': ticketOrderSummary,
+        'Amount Spent': `$${order.amountPaid.toFixed(2)}`,
+      };
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(worksheetData);
+
+    // Step 2: Create a workbook and add the worksheet
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Order Report');
+
+    // Step 3: Write the workbook to a buffer
+    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+
+    return buffer;
   }
 
   async fillTicketDetails(dto: FillTicketDetailsDto) {
@@ -623,8 +582,8 @@ export class OrdersService {
       });
 
       return {
-        success: true,
         message: 'Ticket details has been successfully filled',
+        orderId: order.id,
       };
     } catch (e) {
       throw new InternalServerErrorException(
@@ -710,6 +669,7 @@ export class OrdersService {
           gte: query.startDate,
           lte: query.endDate,
         },
+        paymentStatus: 'SUCCESSFUL',
       },
     });
 
@@ -733,6 +693,7 @@ export class OrdersService {
             gte: startDate2,
             lte: endDate2,
           },
+          paymentStatus: 'SUCCESSFUL',
         },
         orderBy: {
           createdAt: 'desc',
@@ -759,7 +720,13 @@ export class OrdersService {
           tickets: true,
           _count: {
             select: {
-              tickets: true,
+              tickets: {
+                where: {
+                  order: {
+                    paymentStatus: 'SUCCESSFUL',
+                  },
+                },
+              },
             },
           },
         },
@@ -773,7 +740,9 @@ export class OrdersService {
   }
 
   async ticketsSoldStats(query: DateRangeQueryDto) {
-    const orders1 = await this.getOrders(query);
+    const orders1 = (await this.getOrders(query)).orders.filter(
+      (order) => order.paymentStatus === 'SUCCESSFUL',
+    );
     const ticketsSold1 =
       orders1?.reduce((accValue, order) => {
         return accValue + order.tickets.length;
@@ -786,10 +755,12 @@ export class OrdersService {
       const startDate2 = dateFns.subDays(query.startDate, daysDiff || 1);
       const endDate2 = dateFns.subMonths(query.endDate, daysDiff || 1);
 
-      const orders2 = await this.getOrders({
-        endDate: endDate2,
-        startDate: startDate2,
-      });
+      const orders2 = (
+        await this.getOrders({
+          endDate: endDate2,
+          startDate: startDate2,
+        })
+      ).orders.filter((order) => order.paymentStatus === 'SUCCESSFUL');
 
       const ticketsSold2 =
         orders2?.reduce((accValue, order) => {

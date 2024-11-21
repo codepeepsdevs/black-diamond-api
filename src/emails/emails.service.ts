@@ -207,9 +207,15 @@ export class EmailsService {
       order: any;
       orderDate: string; // normal August 7, 2024
       eventDate: string; // pdt
+      ticketGroups: {
+        name: string;
+        quantity: number;
+        price: number;
+      }[];
     }, // Todo change to return type of the fetch order query
   ): Promise<void> {
     console.log('sending order confirmed email to:', email);
+    console.log(data.ticketGroups);
     try {
       // Read EJS template file
       const templateFile = fs.readFileSync(
@@ -222,7 +228,7 @@ export class EmailsService {
       await transporter.sendMail({
         from: 'BlackDiamond <support@eventsbyblackdiamond.com>',
         to: email,
-        subject: 'Your order payment is complete! View tickets',
+        subject: 'Your order payment has been confirmed! View tickets',
         html: renderedEmail,
       });
 
@@ -241,6 +247,11 @@ export class EmailsService {
       orderDate: string; // normal August 7, 2024
       eventDate: string; // pdt
       amountToPay: number;
+      ticketGroups: {
+        name: string;
+        quantity: number;
+        price: number;
+      }[];
     }, // Todo change to return type of the fetch order query
   ): Promise<void> {
     console.log('sending order received email to', email);
@@ -257,7 +268,7 @@ export class EmailsService {
       await transporter.sendMail({
         from: 'BlackDiamond <support@eventsbyblackdiamond.com>',
         to: email,
-        subject: 'Your order payment is complete! View tickets',
+        subject: 'Your order has been received!',
         html: renderedEmail,
       });
 
@@ -303,4 +314,3 @@ export class EmailsService {
     }
   }
 }
-

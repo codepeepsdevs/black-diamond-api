@@ -359,3 +359,9 @@ export class EventStatusPaginationQueryDto extends EventStatusQuery {
   @IsString()
   search?: string;
 }
+
+export class RemoveImageDto {
+  @IsString({ message: 'Image to delete must be provided' })
+  @IsNotEmpty({ message: 'Image to delete must be provided' })
+  image: string;
+}
