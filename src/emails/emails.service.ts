@@ -215,7 +215,6 @@ export class EmailsService {
     }, // Todo change to return type of the fetch order query
   ): Promise<void> {
     console.log('sending order confirmed email to:', email);
-    console.log(data.ticketGroups);
     try {
       // Read EJS template file
       const templateFile = fs.readFileSync(

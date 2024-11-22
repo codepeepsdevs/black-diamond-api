@@ -10,8 +10,11 @@ import { ConfigService } from '@nestjs/config';
 import { OrdersService } from 'src/orders/orders.service';
 import { EmailsService } from 'src/emails/emails.service';
 import { FRONTEND_URL } from 'src/constants';
-import { getTimeZoneDateRange } from 'src/utils/date-formatter';
-import * as dateFns from 'date-fns';
+import {
+  getTimeZoneDateRange,
+  newYorkTimeZone,
+} from 'src/utils/date-formatter';
+import * as dateFnsTz from 'date-fns-tz';
 
 @Controller('stripe')
 export class StripeController {
@@ -101,9 +104,12 @@ export class StripeController {
           new Date(order.event.startTime || Date.now()),
           new Date(order.event.endTime || Date.now()),
         ),
-        orderDate: dateFns.format(
+        orderDate: dateFnsTz.format(
           new Date(order.createdAt || Date.now()),
           'MMMM d, yyyy',
+          {
+            timeZone: newYorkTimeZone,
+          },
         ),
         ticketGroups: Object.values(ticketGroup),
       });
