@@ -9,7 +9,7 @@ export function getTimeZoneDateRange(startDate: Date, endDate: Date) {
       timeZone: newYorkTimeZone,
     })
     .split(' ')[2];
-  return `${dateFnsTz.format(startDate, 'EEEE, MMMM d · haaa', { timeZone: newYorkTimeZone })} - ${dateFnsTz.format(endDate, `haaa '${timeZoneAbbr}'`, { timeZone: newYorkTimeZone })}`;
+  return `${dateFnsTz.format(startDate, 'EEEE, MMMM d · h:mmaaa', { timeZone: newYorkTimeZone })} - ${dateFnsTz.format(endDate, `haaa '${timeZoneAbbr}'`, { timeZone: newYorkTimeZone })}`;
 }
 
 export const getCurrentNewYorkDateTimeInUTC = () => {

@@ -86,8 +86,11 @@ export class OrdersController {
     // After successful order placement, send order received email
     const ticketLink = `${this.configService.get(FRONTEND_URL)}/tickets/`; // just take them to tickets page.
     const totalAmount = allLineItems.reduce((accValue, currItem) => {
-      return accValue + Number(currItem.price_data.unit_amount);
+      return (
+        accValue + Number(currItem.price_data.unit_amount) * currItem.quantity
+      );
     }, 0);
+
     const ticketGroup: Record<
       string,
       {
