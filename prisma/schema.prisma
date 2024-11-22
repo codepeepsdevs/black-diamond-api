@@ -282,7 +282,7 @@ model AddonOrder {
 
 model Ticket {
   id           String     @id @default(auto()) @map("_id") @db.ObjectId
-  checkinCode  String?    @unique
+  checkinCode  String?
   order        Order      @relation(fields: [orderId], references: [id])
   orderId      String     @db.ObjectId
   ticketType   TicketType @relation(fields: [ticketTypeId], references: [id])
