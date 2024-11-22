@@ -285,4 +285,3 @@ export class AuthenticationController {
     return this.authenticationService.resetPassword(dto);
   }
 }
-
