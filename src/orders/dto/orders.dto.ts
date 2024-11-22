@@ -2,6 +2,7 @@ import { Gender } from '@prisma/client';
 import { Transform, Type } from 'class-transformer';
 import {
   IsArray,
+  IsBoolean,
   IsEmail,
   IsMongoId,
   IsNotEmpty,
@@ -44,6 +45,10 @@ export class CreateOrderDto {
   @IsString()
   @IsOptional()
   phone?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  eventUpdates: boolean;
 
   @IsString()
   @IsOptional()

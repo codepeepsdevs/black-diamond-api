@@ -37,6 +37,7 @@ import {
 import { EventsService } from 'src/events/events.service';
 import * as XLSX from 'xlsx';
 import { AuthenticationService } from 'src/auth/services/auth.service';
+import { NewsletterService } from 'src/newsletter/newsletter.service';
 
 const nanoid = customAlphabet('1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ', 12);
 
@@ -51,11 +52,13 @@ export class OrdersService {
     private readonly userService: UsersService,
     private readonly eventService: EventsService,
     private readonly authService: AuthenticationService,
+    private readonly newsletterService: NewsletterService,
   ) {}
 
   async createOrder(dto: CreateOrderDto, token: string | undefined) {
     let user: User | null = null;
     let newAccount = false;
+    console.log('---------placing order-------');
     const event = await this.eventService.getEvent(dto.eventId);
     if (event.eventStatus === 'PAST') {
       throw new InternalServerErrorException(
@@ -67,6 +70,16 @@ export class OrdersService {
         'This event is not yet taking orders',
       );
     }
+
+    this.newsletterService
+      .subscribe({
+        email: dto.email,
+      })
+      .then(() => {
+        console.log('Successfully subscribed to newletter');
+      })
+      .catch((e) => console.log(e));
+
     return await this.prisma.$transaction(
       async (prisma) => {
         // if a token exists, place the order for the user the token belongs to
@@ -123,7 +136,7 @@ export class OrdersService {
             } catch (error) {
               console.log(error);
               throw new HttpException(
-                'Error occurred while creating user',
+                'Error occurred while placing order',
                 HttpStatus.INTERNAL_SERVER_ERROR,
               );
             }

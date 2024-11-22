@@ -8,6 +8,7 @@ import { EventsService } from 'src/events/events.service';
 import { EmailsService } from 'src/emails/emails.service';
 import { UsersService } from 'src/users/users.service';
 import { AuthenticationService } from 'src/auth/services/auth.service';
+import { NewsletterService } from 'src/newsletter/newsletter.service';
 
 @Module({
   controllers: [OrdersController],
@@ -20,6 +21,7 @@ import { AuthenticationService } from 'src/auth/services/auth.service';
     EmailsService,
     UsersService,
     AuthenticationService,
+    NewsletterService,
   ],
 })
 export class OrdersModule {}

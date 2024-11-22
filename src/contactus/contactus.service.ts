@@ -9,10 +9,13 @@ export class ContactusService {
 
   async create(
     createContactDto: CreateContactDto,
-    attachment?: Express.Multer.File,
+    attachment?: Express.Multer.File | undefined,
   ) {
     return this.prisma.contactUs.create({
-      data: { ...createContactDto, attachment: attachment.path },
+      data: {
+        ...createContactDto,
+        attachment: attachment ? attachment.path : undefined,
+      },
     });
   }
 
