@@ -72,12 +72,13 @@ export class OrdersController {
     if (authHeader) {
       token = authHeader.split(' ')[1];
     }
+    const order = await this.ordersService.createOrder(body, token);
     const successUrl =
-      body.successUrl ?? this.configService.get<string>(SUCCESS_URL);
+      body.successUrl ??
+      `${this.configService.get<string>(SUCCESS_URL)}/${order.id}`;
     const cancelUrl =
       body.cancelUrl ?? this.configService.get<string>(CANCEL_URL);
 
-    const order = await this.ordersService.createOrder(body, token);
     const { session, allLineItems } =
       await this.stripeService.createCheckoutSession(
         body,
