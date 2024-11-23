@@ -14,6 +14,7 @@ import {
   GenerateOrderReportQueryDto,
   GetOrdersQuery,
   GetRevenueQueryDto,
+  GeneratePartyListDto,
   UserOrderPaginationDto,
 } from './dto/orders.dto';
 // import { PaginationQueryDto } from 'src/shared/dto/pagination-query.dto';
@@ -482,62 +483,122 @@ export class OrdersService {
   }
 
   async generateOrderReport(query: GenerateOrderReportQueryDto) {
-    const { orders } = await this.getOrders(query);
+    try {
+      const { orders } = await this.getOrders(query);
 
-    // Format the data as a worksheet
-    type GroupByTicketType = {
-      [key in TicketType['name']]: {
-        ticketTypeName: string;
-        quantity: number;
+      // Format the data as a worksheet
+      type GroupByTicketType = {
+        [key in TicketType['name']]: {
+          ticketTypeName: string;
+          quantity: number;
+        };
       };
-    };
-    const worksheetData = orders.map((order) => {
-      const groupedTickets: GroupByTicketType = order.tickets.reduce(
-        (group, currTicket) => {
-          if (group[currTicket.ticketType.name]) {
-            group[currTicket.ticketType.name].quantity += 1;
-          } else {
-            group[currTicket.ticketType.name] = {
-              ticketTypeName: currTicket.ticketType.name,
-              quantity: 1,
-            };
-          }
-          return group;
+      const worksheetData = orders.map((order) => {
+        const groupedTickets: GroupByTicketType = order.tickets.reduce(
+          (group, currTicket) => {
+            if (group[currTicket.ticketType.name]) {
+              group[currTicket.ticketType.name].quantity += 1;
+            } else {
+              group[currTicket.ticketType.name] = {
+                ticketTypeName: currTicket.ticketType.name,
+                quantity: 1,
+              };
+            }
+            return group;
+          },
+          {} as GroupByTicketType,
+        );
+        const lastElementIndex = Object.values(groupedTickets).length - 1;
+        const ticketOrderSummary = Object.values(groupedTickets).reduce(
+          (summary, currGroup, index) => {
+            return (
+              summary +
+              `${currGroup.quantity} ${currGroup.ticketTypeName} Ticket(s) ${index < lastElementIndex ? ', ' : ''}`
+            );
+          },
+          '',
+        );
+        return {
+          ID: order.id,
+          'Order Date': order.createdAt.toDateString(),
+          'Event Name': order.event.name,
+          'Customer Name': `${order.firstName} ${order.lastName}`,
+          Phone: order?.phone || 'N/A',
+          Email: order?.email || 'N/A',
+          'Ticket Order Summary': ticketOrderSummary,
+          'Amount Spent': `$${order.amountPaid.toFixed(2)}`,
+        };
+      });
+
+      const worksheet = XLSX.utils.json_to_sheet(worksheetData);
+
+      // Step 2: Create a workbook and add the worksheet
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Order Report');
+
+      // Step 3: Write the workbook to a buffer
+      const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+
+      return buffer;
+    } catch (e) {
+      console.log(e);
+      throw new InternalServerErrorException('Error generating order report');
+    }
+  }
+
+  async generatePartyList(dto: GeneratePartyListDto) {
+    console.log('----Generating party list----');
+    try {
+      const completedTickets = await this.prisma.ticket.findMany({
+        where: {
+          order: {
+            eventId: dto.eventId,
+            paymentStatus: 'SUCCESSFUL',
+            status: 'COMPLETED',
+          },
         },
-        {} as GroupByTicketType,
-      );
-      const lastElementIndex = Object.values(groupedTickets).length - 1;
-      const ticketOrderSummary = Object.values(groupedTickets).reduce(
-        (summary, currGroup, index) => {
-          return (
-            summary +
-            `${currGroup.quantity} ${currGroup.ticketTypeName} Ticket(s) ${index < lastElementIndex ? ', ' : ''}`
-          );
+        include: {
+          order: {
+            include: {
+              event: true,
+            },
+          },
         },
-        '',
+      });
+
+      const event = completedTickets[0].order.event;
+
+      const worksheetData = completedTickets.map((ticket) => {
+        return {
+          ID: ticket.id,
+          'Order Date': ticket.createdAt.toDateString(),
+          'Event Name': ticket.order.event.name,
+          'Full Name': `${ticket.firstName} ${ticket.lastName}`,
+          Phone: ticket?.phone || 'N/A',
+          Email: ticket?.email || 'N/A',
+          Gender: ticket.gender,
+          'Checkin Code': `${ticket.checkinCode}`,
+        };
+      });
+
+      const worksheet = XLSX.utils.json_to_sheet(worksheetData);
+
+      // Step 2: Create a workbook and add the worksheet
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(
+        workbook,
+        worksheet,
+        `${event.name}-Party List`,
       );
-      return {
-        ID: order.id,
-        'Order Date': order.createdAt.toDateString(),
-        'Event Name': order.event.name,
-        'Customer Name': `${order.firstName} ${order.lastName}`,
-        Phone: order?.phone || 'N/A',
-        Email: order?.email || 'N/A',
-        'Ticket Order Summary': ticketOrderSummary,
-        'Amount Spent': `$${order.amountPaid.toFixed(2)}`,
-      };
-    });
 
-    const worksheet = XLSX.utils.json_to_sheet(worksheetData);
+      // Step 3: Write the workbook to a buffer
+      const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
 
-    // Step 2: Create a workbook and add the worksheet
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Order Report');
-
-    // Step 3: Write the workbook to a buffer
-    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
-
-    return buffer;
+      return { buffer, event };
+    } catch (e) {
+      console.log(e);
+      throw new InternalServerErrorException('Error generating party list');
+    }
   }
 
   async fillTicketDetails(dto: FillTicketDetailsDto) {
