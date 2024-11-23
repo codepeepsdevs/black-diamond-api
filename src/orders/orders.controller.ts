@@ -129,7 +129,7 @@ export class OrdersController {
         new Date(order.event.endTime || Date.now()),
       ),
       orderDate: dateFnsTz.format(
-        new Date(order.createdAt || Date.now()),
+        dateFnsTz.toZonedTime(order.createdAt, newYorkTimeZone),
         'MMMM d, yyyy',
         {
           timeZone: newYorkTimeZone,
