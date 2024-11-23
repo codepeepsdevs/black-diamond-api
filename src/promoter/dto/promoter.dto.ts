@@ -1,4 +1,5 @@
 import { Gender } from '@prisma/client';
+import { Transform } from 'class-transformer';
 import { IsString, IsEmail, IsOptional, IsEnum } from 'class-validator';
 
 export class CreatePromoterDto {
@@ -9,6 +10,7 @@ export class CreatePromoterDto {
   lastName: string;
 
   @IsEmail()
+  @Transform(({ value }: { value: string }) => value.toLowerCase())
   email: string;
 
   @IsString()

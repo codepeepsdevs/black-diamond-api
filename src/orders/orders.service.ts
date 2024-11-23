@@ -568,8 +568,9 @@ export class OrdersService {
 
       const event = completedTickets[0].order.event;
 
-      const worksheetData = completedTickets.map((ticket) => {
+      const worksheetData = completedTickets.map((ticket, index) => {
         return {
+          'S/N': index + 1,
           ID: ticket.id,
           'Order Date': ticket.createdAt.toDateString(),
           'Event Name': ticket.order.event.name,

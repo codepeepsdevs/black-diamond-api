@@ -1,4 +1,4 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsArray,
   IsEmail,
@@ -10,6 +10,7 @@ import {
 export class CreateSubscriberDto {
   @IsString()
   @IsEmail()
+  @Transform(({ value }: { value: string }) => value.toLowerCase())
   @IsNotEmpty()
   email: string;
 

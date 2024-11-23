@@ -111,6 +111,7 @@ class TicketDetails {
 
   @IsEmail()
   @IsNotEmpty()
+  @Transform(({ value }: { value: string }) => value.toLowerCase())
   email: string;
 
   @IsString()
