@@ -1,3 +1,4 @@
+import { Transform } from 'class-transformer';
 import { IsString, IsEmail, Length } from 'class-validator';
 
 export class CreateContactDto {
@@ -10,6 +11,7 @@ export class CreateContactDto {
   subject: string;
 
   @IsEmail()
+  @Transform(({ value }: { value: string }) => value.toLowerCase())
   email: string;
 
   @IsString()

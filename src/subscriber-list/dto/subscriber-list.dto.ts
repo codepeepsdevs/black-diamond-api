@@ -1,3 +1,4 @@
+import { Transform } from 'class-transformer';
 import { IsArray, IsEmail, IsNotEmpty, IsString } from 'class-validator';
 
 export class CreateSubscriberListDto {
@@ -17,6 +18,7 @@ export class AddOneSubscriberToListDto {
   @IsString()
   @IsNotEmpty()
   @IsEmail()
+  @Transform(({ value }: { value: string }) => value.toLowerCase())
   email: string;
 
   @IsString()
