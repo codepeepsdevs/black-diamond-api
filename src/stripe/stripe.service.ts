@@ -123,7 +123,8 @@ export class StripeService {
             discountInDollars = ticketType.price * ticketOrder.quantity;
           }
         }
-        const unitAmountInCents = (ticketType.price - discountInDollars) * 100;
+        const unitAmountInCents =
+          (ticketType.price - discountInDollars) * 100 * 0.029 + 30; // Include fees
 
         ticketLineItems.push({
           quantity: ticketOrder.quantity,
@@ -144,7 +145,7 @@ export class StripeService {
             (addon) => addon.id === addonOrder.addonId,
           );
           const unitAmountInCents =
-            addonOrder.quantity * addonDetails.price * 100;
+            addonOrder.quantity * addonDetails.price * 100 * 0.029 + 30;
 
           if (addonOrder.quantity > 0) {
             orderLineItems.push({
@@ -183,6 +184,9 @@ export class StripeService {
       cancel_url: cancelUrl,
       metadata: {
         orderId: orderId,
+      },
+      automatic_tax: {
+        enabled: true,
       },
       payment_intent_data: {
         metadata: {
