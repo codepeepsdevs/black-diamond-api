@@ -17,6 +17,7 @@ import {
   GenerateOrderReportQueryDto,
   GetOrdersQuery,
   GetRevenueQueryDto,
+  GeneratePartyListDto,
   UserOrderPaginationDto,
 } from './dto/orders.dto';
 import { Roles } from 'src/auth/guards/roles.decorator';
@@ -183,6 +184,27 @@ export class OrdersController {
     res.setHeader(
       'Content-Disposition',
       `attachment; filename="Order_Report_${query.startDate || ''}-${query.endDate || ''}.xlsx"`,
+    );
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    res.send(buffer);
+  }
+
+  @UseGuards(JwtAuthenticationGuard, RolesGuard)
+  @Roles()
+  @Post('generate-party-list')
+  async generatePartyList(
+    @Res() res: Response,
+    @Body() dto: GeneratePartyListDto,
+  ) {
+    const { buffer, event } = await this.ordersService.generatePartyList(dto);
+
+    // Step 4: Send the buffer as a downloadable file
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${event.name}-Party List.xlsx"`,
     );
     res.setHeader(
       'Content-Type',
