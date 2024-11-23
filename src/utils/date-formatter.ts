@@ -1,6 +1,6 @@
 import * as dateFnsTz from 'date-fns-tz';
 
-const newYorkTimeZone = 'America/New_York';
+export const newYorkTimeZone = 'America/New_York';
 
 export function getTimeZoneDateRange(startDate: Date, endDate: Date) {
   const timeZoneAbbr = new Date(startDate || endDate || Date.now())

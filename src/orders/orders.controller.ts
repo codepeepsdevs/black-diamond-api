@@ -33,8 +33,11 @@ import { Response } from 'express';
 import {} from 'src/events/dto/events.dto';
 import { DateRangeQueryDto } from 'src/shared/dto/date-range-query.dto';
 import { EmailsService } from 'src/emails/emails.service';
-import { getTimeZoneDateRange } from 'src/utils/date-formatter';
-import * as dateFns from 'date-fns';
+import {
+  getTimeZoneDateRange,
+  newYorkTimeZone,
+} from 'src/utils/date-formatter';
+import * as dateFnsTz from 'date-fns-tz';
 
 @Controller('orders')
 export class OrdersController {
@@ -125,9 +128,12 @@ export class OrdersController {
         new Date(order.event.startTime || Date.now()),
         new Date(order.event.endTime || Date.now()),
       ),
-      orderDate: dateFns.format(
+      orderDate: dateFnsTz.format(
         new Date(order.createdAt || Date.now()),
         'MMMM d, yyyy',
+        {
+          timeZone: newYorkTimeZone,
+        },
       ),
       ticketGroups: Object.values(ticketGroup),
     });
