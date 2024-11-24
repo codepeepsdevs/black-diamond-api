@@ -55,7 +55,7 @@ export class AuthenticationService {
     try {
       const user = await this.prisma.user.create({
         data: {
-          email: dto.email,
+          email: dto.email.toLowerCase(),
           firstname: dto.firstname,
           lastname: dto.lastname,
           password: hashedPassword,
@@ -154,7 +154,7 @@ export class AuthenticationService {
   }
 
   public async login(email: string, plainTextPassword: string) {
-    const user = await this.usersService.findOneByEmail(email);
+    const user = await this.usersService.findOneByEmail(email.toLowerCase());
 
     if (!user) throw new UnauthorizedException('Invalid credentials');
 
@@ -170,7 +170,7 @@ export class AuthenticationService {
       user.authMethod === 'EMAIL' &&
       isDefaultPassword
     ) {
-      await this.sendCompleteSignupLink(user.email);
+      await this.sendCompleteSignupLink(user.email.toLowerCase());
       throw new ForbiddenException('complete signup');
     }
 
