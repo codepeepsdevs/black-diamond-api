@@ -123,8 +123,9 @@ export class StripeService {
             discountInDollars = ticketType.price * ticketOrder.quantity;
           }
         }
-        const unitAmountInCents =
-          (ticketType.price - discountInDollars) * 100 * 1.029 + 30; // Include fees
+        const unitAmountInCents = Math.ceil(
+          (ticketType.price - discountInDollars) * 100 * 1.029 + 30,
+        ); // Include fees
         console.log('---unit amount in cents---', unitAmountInCents);
 
         ticketLineItems.push({
@@ -145,8 +146,9 @@ export class StripeService {
           const addonDetails = event.addons.find(
             (addon) => addon.id === addonOrder.addonId,
           );
-          const unitAmountInCents =
-            addonOrder.quantity * addonDetails.price * 100 * 1.029 + 30;
+          const unitAmountInCents = Math.ceil(
+            addonOrder.quantity * addonDetails.price * 100 * 1.029 + 30,
+          );
 
           if (addonOrder.quantity > 0) {
             orderLineItems.push({
