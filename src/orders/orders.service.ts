@@ -74,7 +74,7 @@ export class OrdersService {
 
     this.newsletterService
       .subscribe({
-        email: dto.email,
+        email: dto.email.toLowerCase(),
       })
       .then(() => {
         console.log('Successfully subscribed to newletter');
@@ -104,7 +104,9 @@ export class OrdersService {
             throw new NotFoundException('User not found');
           }
         } else {
-          const userExists = await this.userService.findOneByEmail(dto.email);
+          const userExists = await this.userService.findOneByEmail(
+            dto.email.toLowerCase(),
+          );
 
           if (userExists) {
             user = userExists;
@@ -115,7 +117,7 @@ export class OrdersService {
             try {
               user = await prisma.user.create({
                 data: {
-                  email: dto.email,
+                  email: dto.email.toLowerCase(),
                   password: hashedPassword,
                   authMethod: 'EMAIL',
                   emailConfirmed: false,
@@ -198,7 +200,7 @@ export class OrdersService {
               eventId: dto.eventId,
               firstName: dto.firstName,
               lastName: dto.lastName,
-              email: dto.email,
+              email: dto.email.toLowerCase(),
               phone: dto.phone,
               promocodeId: dto.promocodeId, // Todo validate promocode before adding it
               tickets: {
@@ -224,7 +226,9 @@ export class OrdersService {
           });
 
           if (newAccount) {
-            await this.authService.sendCompleteSignupLink(dto.email);
+            await this.authService.sendCompleteSignupLink(
+              dto.email.toLowerCase(),
+            );
           }
 
           return order;
