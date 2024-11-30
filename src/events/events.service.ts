@@ -132,7 +132,17 @@ export class EventsService {
         id: eventId,
       },
       include: {
-        ticketTypes: true,
+        ticketTypes: {
+          include: {
+            tickets: {
+              where: {
+                order: {
+                  paymentStatus: 'SUCCESSFUL',
+                },
+              },
+            },
+          },
+        },
         addons: true,
       },
     });
@@ -140,7 +150,18 @@ export class EventsService {
     if (!event) {
       throw new NotFoundException('Event not found');
     }
+
+    event.ticketTypes.forEach((ticketType, index) => {
+      const soldQuantity = ticketType.tickets.length;
+
+      event.ticketTypes[index]['soldQuantity'] = soldQuantity;
+      // TODO: Handle the fact that it should not be showing in typescript also
+      // Delete the tickets field
+      delete event.ticketTypes[index].tickets;
+    });
+
     event['eventStatus'] = getEventStatus(event.startTime);
+
     return event as typeof event & EventStatus;
   }
 
