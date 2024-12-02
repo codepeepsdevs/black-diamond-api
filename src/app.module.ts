@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { PrismaService } from './prisma.service';
 import { UsersModule } from './users/users.module';
 import { ConfigModule } from '@nestjs/config';
 import { OrdersModule } from './orders/orders.module';
@@ -14,6 +13,7 @@ import { StripeModule } from './stripe/stripe.module';
 // import { LoggerModule } from 'nestjs-pino';
 import { SubscriberListModule } from './subscriber-list/subscriber-list.module';
 import { SubscriberModule } from './subscriber/subscriber.module';
+import { PrismaModule } from './prisma/prisma.module';
 
 @Module({
   imports: [
@@ -38,6 +38,7 @@ import { SubscriberModule } from './subscriber/subscriber.module';
     StripeModule,
     SubscriberListModule,
     SubscriberModule,
+    PrismaModule,
     // ServeStaticModule.forRoot({
     //   rootPath: join(__dirname, '..', 'static'),
     // }),
@@ -53,6 +54,6 @@ import { SubscriberModule } from './subscriber/subscriber.module';
     // }),
   ],
   controllers: [AppController],
-  providers: [AppService, PrismaService],
+  providers: [AppService],
 })
 export class AppModule {}

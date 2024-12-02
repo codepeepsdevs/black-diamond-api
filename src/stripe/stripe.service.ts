@@ -60,6 +60,9 @@ export class StripeService {
     successUrl: string,
     cancelUrl: string,
     orderId: string,
+    promocode:
+      | Awaited<ReturnType<typeof this.eventService.getPromocodeById>>
+      | undefined,
   ) {
     let customerId: string;
 
@@ -83,12 +86,12 @@ export class StripeService {
 
     try {
       const event = await this.eventService.getEvent(order.eventId);
-      let promocode: Awaited<
-        ReturnType<typeof this.eventService.getPromocodeById>
-      > = null;
-      if (order.promocodeId) {
-        promocode = await this.eventService.getPromocodeById(order.promocodeId);
-      }
+      // let promocode: Awaited<
+      //   ReturnType<typeof this.eventService.getPromocodeById>
+      // > = null;
+      // if (order.promocodeId) {
+      //   promocode = await this.eventService.getPromocodeById(order.promocodeId);
+      // }
 
       // process ticket orders
       order.ticketOrders.forEach((ticketOrder) => {

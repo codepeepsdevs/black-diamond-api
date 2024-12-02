@@ -10,7 +10,7 @@ import {
 import * as bcrypt from 'bcrypt';
 import { JwtService, TokenExpiredError } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import { PrismaService } from 'src/prisma.service';
+import { PrismaService } from 'src/prisma/prisma.service';
 
 import { UsersService } from 'src/users/users.service';
 import {

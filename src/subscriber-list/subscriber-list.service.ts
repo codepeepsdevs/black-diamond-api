@@ -12,7 +12,7 @@ import {
   CreateSubscriberListDto,
   UpdateSubscribersListDto,
 } from './dto/subscriber-list.dto';
-import { PrismaService } from 'src/prisma.service';
+import { PrismaService } from 'src/prisma/prisma.service';
 import { PaginationQueryDto } from 'src/shared/dto/pagination-query.dto';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { Subscriber } from '@prisma/client';

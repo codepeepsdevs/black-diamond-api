@@ -7,7 +7,7 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { PrismaService } from 'src/prisma.service';
+import { PrismaService } from 'src/prisma/prisma.service';
 import {
   CreateOrderDto,
   FillTicketDetailsDto,
@@ -31,10 +31,7 @@ import * as dateFns from 'date-fns';
 import { getPagination } from 'src/utils/get-pagination';
 import { DateRangeQueryDto } from 'src/shared/dto/date-range-query.dto';
 import { customAlphabet } from 'nanoid';
-import {
-  getCurrentNewYorkDateTimeInUTC,
-  getEventStatus,
-} from 'src/utils/date-formatter';
+import { getEventStatus, isTicketTypeVisible } from 'src/utils/helpers';
 import { EventsService } from 'src/events/events.service';
 import * as XLSX from 'xlsx';
 import { AuthenticationService } from 'src/auth/services/auth.service';
@@ -71,15 +68,27 @@ export class OrdersService {
         'This event is not yet taking orders',
       );
     }
-
-    this.newsletterService
-      .subscribe({
-        email: dto.email.toLowerCase(),
-      })
-      .then(() => {
-        console.log('Successfully subscribed to newletter');
-      })
-      .catch((e) => console.log(e));
+    // TODO: pass in if they allow promotions in the dto
+    if (dto.eventUpdates) {
+      this.newsletterService
+        .subscribe({
+          email: dto.email.toLowerCase(),
+        })
+        .then(() => {
+          console.log('Successfully subscribed to newletter');
+        })
+        .catch((e) => console.log(e));
+    }
+    // Check promocode
+    let promocode: Awaited<
+      ReturnType<typeof this.eventService.getPromocodeById>
+    > = null;
+    if (dto.promocodeId) {
+      promocode = await this.eventService.getPromocodeById(dto.promocodeId);
+      if (!promocode.isActive) {
+        throw new InternalServerErrorException('Promocode is expired');
+      }
+    }
 
     return await this.prisma.$transaction(
       async (prisma) => {
@@ -152,10 +161,39 @@ export class OrdersService {
         // dto.ticketOrders.forEach(async (ticketTypeOrder) => {
         // using for in loop because throwing error in a callback in javascript for rolling back the transaction occurs in another context
         for (const ticketTypeOrder of dto.ticketOrders) {
-          const { quantity: totalQuantity, name: ticketName } =
-            event.ticketTypes.find(
-              (ticketType) => ticketType.id === ticketTypeOrder.ticketTypeId,
+          const ticketType = event.ticketTypes.find(
+            (ticketType) => ticketType.id === ticketTypeOrder.ticketTypeId,
+          );
+          // check if the ticket is in the time frame for sale
+          let shouldSell = true;
+          if (
+            ticketType.visibility === 'CUSTOM_SCHEDULE' &&
+            !isTicketTypeVisible(ticketType.startDate, ticketType.endDate)
+          ) {
+            shouldSell = false;
+          }
+          if (!shouldSell) {
+            throw new InternalServerErrorException(
+              'Ticket is not yet for sale',
             );
+          }
+          // validate the min and max quantity for order
+          if (
+            ticketType.minQty &&
+            ticketTypeOrder.quantity < ticketType.minQty
+          ) {
+            throw new InternalServerErrorException(
+              `Please select a minimum of ${ticketType.minQty} tickets`,
+            );
+          }
+          if (
+            ticketType.maxQty &&
+            ticketTypeOrder.quantity > ticketType.maxQty
+          ) {
+            throw new InternalServerErrorException(
+              `Please select a maximum of ${ticketType.maxQty} tickets`,
+            );
+          }
           // get the number of tickets for a tickettype of this event that has already been successfully paid for
           const soldQuantity = await this.prisma.ticket.count({
             where: {
@@ -166,10 +204,11 @@ export class OrdersService {
               },
             },
           });
-          const quantityAvailable = totalQuantity - soldQuantity;
+          const quantityAvailable = ticketType.quantity - soldQuantity;
           if (ticketTypeOrder.quantity > quantityAvailable) {
             throw new InternalServerErrorException(
-              `Unable to place order, only ${quantityAvailable} slot(s) are available for ${ticketName} ticket type, please go back and edit your order`,
+              `Unable to place order, only ${quantityAvailable}
+               slot(s) are available for ${ticketType.name} ticket type, please go back and edit your order`,
             );
           }
           for (let i = 0; i < ticketTypeOrder.quantity; i++) {
@@ -231,7 +270,7 @@ export class OrdersService {
             );
           }
 
-          return order;
+          return { order, promocode };
         } catch (e) {
           console.log(e);
           throw new InternalServerErrorException('Unable to place order');
@@ -251,7 +290,7 @@ export class OrdersService {
     const { page: _page, limit: _limit, eventStatus } = paginationQuery;
 
     const { skip, take } = getPagination({ _page, _limit });
-    const nowInNewYorkUTC = getCurrentNewYorkDateTimeInUTC();
+    const nowUTC = new Date();
     const userOrders = await this.prisma.order.findMany({
       where: {
         userId,
@@ -262,10 +301,10 @@ export class OrdersService {
                 ? undefined
                 : eventStatus === 'past'
                   ? {
-                      lt: nowInNewYorkUTC,
+                      lt: nowUTC,
                     }
                   : {
-                      gt: nowInNewYorkUTC,
+                      gt: nowUTC,
                     },
           },
         },
@@ -294,14 +333,14 @@ export class OrdersService {
   ) {
     const { page: _page, limit: _limit } = paginationQuery;
     const { skip, take } = getPagination({ _page, _limit });
-    const nowInNewYorkUTC = getCurrentNewYorkDateTimeInUTC();
+    const nowUTC = new Date();
 
     const whereObject: Prisma.OrderWhereInput = {
       userId,
       AND: {
         event: {
           startTime: {
-            gt: nowInNewYorkUTC,
+            gt: nowUTC,
           },
         },
         paymentStatus: 'SUCCESSFUL',
@@ -341,14 +380,14 @@ export class OrdersService {
   ) {
     const { page: _page, limit: _limit } = paginationQuery;
     const { skip, take } = getPagination({ _page, _limit });
-    const nowInNewYorkUTC = getCurrentNewYorkDateTimeInUTC();
+    const nowUTC = new Date();
 
     const whereObject: Prisma.OrderWhereInput = {
       userId,
       AND: {
         event: {
           startTime: {
-            lt: nowInNewYorkUTC,
+            lt: nowUTC,
           },
         },
         paymentStatus: 'SUCCESSFUL',
@@ -408,7 +447,7 @@ export class OrdersService {
       throw new NotFoundException('Order not found');
     }
 
-    order.event['eventStatus'] = getEventStatus(order.event.startTime);
+    order.event['eventStatus'] = getEventStatus(order.event.endTime);
     return order;
   }
 
@@ -421,17 +460,17 @@ export class OrdersService {
       startDate,
     } = query;
     const { skip, take } = getPagination({ _page, _limit });
-    const nowInNewYorkUTC = getCurrentNewYorkDateTimeInUTC();
+    const nowUTC = new Date();
     const whereObject: Prisma.OrderWhereInput = {
       event: {
         startTime:
           eventStatus === 'past'
             ? {
-                lt: nowInNewYorkUTC,
+                lt: nowUTC,
               }
             : eventStatus === 'upcoming'
               ? {
-                  gt: nowInNewYorkUTC,
+                  gt: nowUTC,
                 }
               : undefined,
       },

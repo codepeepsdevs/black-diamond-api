@@ -2,13 +2,18 @@ import { Transform, Type } from 'class-transformer';
 import {
   IsArray,
   IsDate,
+  IsEnum,
+  IsInt,
   IsNotEmpty,
   IsNumber,
   IsOptional,
   IsString,
+  Min,
+  ValidateIf,
 } from 'class-validator';
 import { IsAOrB, IsStartDateBeforeEndDate } from './custom-validator';
-import { LocationType } from '@prisma/client';
+import { LocationType, TicketTypeVisibility } from '@prisma/client';
+import { Optional } from '@nestjs/common';
 
 // class TicketTypeDto {
 //   @IsString()
@@ -116,9 +121,17 @@ export class CreateEventTicketTypeDto {
   @Type(() => Date)
   startDate: Date;
 
+  @IsString()
+  @IsNotEmpty()
+  startTime: string;
+
   @IsDate()
   @Type(() => Date)
   endDate: Date;
+
+  @IsString()
+  @IsNotEmpty()
+  endTime: string;
 
   @Type(() => Number)
   @IsNotEmpty()
@@ -127,6 +140,23 @@ export class CreateEventTicketTypeDto {
   @IsString()
   @IsNotEmpty()
   eventId: string;
+
+  @IsString()
+  @IsEnum(TicketTypeVisibility, {
+    message:
+      'Visibility must be on of hidden, visible, custom, hidden when not on sale',
+  })
+  visibility: TicketTypeVisibility;
+
+  @IsNumber()
+  @Optional()
+  @Type(() => Number)
+  minQty?: number;
+
+  @IsNumber()
+  @Optional()
+  @Type(() => Number)
+  maxQty?: number;
 }
 
 export class CreateEventPromoCode {
@@ -324,14 +354,43 @@ export class UpdatEventTicketTypeDto {
   @Type(() => Date)
   startDate: Date;
 
+  @IsString()
+  @IsNotEmpty()
+  startTime: string;
+
   @IsOptional()
   @IsDate()
   @Type(() => Date)
   endDate: Date;
 
+  @IsString()
+  @IsNotEmpty()
+  endTime: string;
+
   @IsOptional()
   @Type(() => Number)
   price: number;
+
+  @IsString()
+  @IsEnum(TicketTypeVisibility, {
+    message:
+      'Visibility must be on of hidden, visible, custom, hidden when not on sale',
+  })
+  visibility: TicketTypeVisibility;
+
+  @ValidateIf((o) => o.maxQty != undefined) // Only validate if minQty is provided
+  @Optional()
+  @IsInt({ message: 'minQty must be a number' })
+  @Min(1, { message: 'minQty must be at least 1' })
+  @Type(() => Number)
+  minQty?: number;
+
+  @ValidateIf((o) => o.maxQty != undefined) // Only validate if maxQty is provided
+  @Optional()
+  @IsInt({ message: 'maxQty must be a number' })
+  @Min(1, { message: 'maxQty must be at least 1' })
+  @Type(() => Number)
+  maxQty?: number;
 }
 
 const EventStatus = ['all', 'past', 'upcoming'] as const;

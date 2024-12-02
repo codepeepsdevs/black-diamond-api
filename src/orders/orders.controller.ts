@@ -34,10 +34,7 @@ import { Response } from 'express';
 import {} from 'src/events/dto/events.dto';
 import { DateRangeQueryDto } from 'src/shared/dto/date-range-query.dto';
 import { EmailsService } from 'src/emails/emails.service';
-import {
-  getTimeZoneDateRange,
-  newYorkTimeZone,
-} from 'src/utils/date-formatter';
+import { getTimeZoneDateRange, newYorkTimeZone } from 'src/utils/helpers';
 import * as dateFnsTz from 'date-fns-tz';
 
 @Controller('orders')
@@ -72,7 +69,10 @@ export class OrdersController {
     if (authHeader) {
       token = authHeader.split(' ')[1];
     }
-    const order = await this.ordersService.createOrder(body, token);
+    const { order, promocode } = await this.ordersService.createOrder(
+      body,
+      token,
+    );
     const successUrl =
       body.successUrl ??
       `${this.configService.get<string>(SUCCESS_URL)}/${order.id}`;
@@ -85,6 +85,7 @@ export class OrdersController {
         successUrl,
         cancelUrl,
         order.id,
+        promocode,
       );
     await this.ordersService.setSessionId(order.id, session.id);
 

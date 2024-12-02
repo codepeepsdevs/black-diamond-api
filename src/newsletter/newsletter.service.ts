@@ -6,7 +6,7 @@ import {
 import { CreateSubscriptionDto } from './dto/create-subscription.dto';
 import { UnsubscribeDto } from './dto/unsubscribe.dto';
 import { SubscriptionStatusDto } from './dto/subscription-status.dto';
-import { PrismaService } from 'src/prisma.service';
+import { PrismaService } from 'src/prisma/prisma.service';
 
 @Injectable()
 export class NewsletterService {

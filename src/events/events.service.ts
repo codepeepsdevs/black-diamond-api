@@ -5,7 +5,7 @@ import {
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
-import { PrismaService } from 'src/prisma.service';
+import { PrismaService } from 'src/prisma/prisma.service';
 import {
   CreateEventAddonDto,
   CreateEventDetailsDto,
@@ -20,9 +20,11 @@ import { PaginationQueryDto } from 'src/shared/dto/pagination-query.dto';
 import { EventStatusPaginationQueryDto as EventsPaginationQueryDto } from './dto/events.dto';
 import { getPagination } from 'src/utils/get-pagination';
 import {
-  getCurrentNewYorkDateTimeInUTC,
+  combineDateAndTime,
   getEventStatus,
-} from 'src/utils/date-formatter';
+  isPromocodeActive,
+  isTicketTypeVisible,
+} from 'src/utils/helpers';
 // import { cloudinary } from 'src/cloudinary/cloudinary.config';
 
 export type EventStatus = { eventStatus: 'UPCOMING' | 'PAST' };
@@ -59,17 +61,26 @@ export class EventsService {
     }
   }
 
-  async createEventTicketType(dto: CreateEventTicketTypeDto) {
+  async createEventTicketType({
+    startDate,
+    startTime,
+    endDate,
+    endTime,
+    ...dto
+  }: CreateEventTicketTypeDto) {
+    const utcStartDate = combineDateAndTime(startDate, startTime);
+    const utcEndDate = combineDateAndTime(endDate, endTime);
+
+    if (utcEndDate < utcStartDate) {
+      throw new InternalServerErrorException(
+        'Start time must be lesser than end time',
+      );
+    }
+
     try {
       const ticketType = await this.prisma.ticketType.create({
-        data: dto,
+        data: { ...dto, startDate: utcStartDate, endDate: utcEndDate },
       });
-
-      // const eventTicketTypes = this.prisma.ticketType.findMany({
-      //   where: {
-      //     eventId: dto.eventId,
-      //   },
-      // });
 
       return ticketType;
     } catch (e) {
@@ -80,19 +91,24 @@ export class EventsService {
     }
   }
 
-  async createEventPromoCode(dto: CreateEventPromoCode) {
+  async createEventPromoCode({
+    absoluteDiscountAmount,
+    percentageDiscountAmount,
+    applyToTicketIds,
+    ...dto
+  }: CreateEventPromoCode) {
     try {
       const newPromoCode = await this.prisma.promoCode.create({
         data: {
-          absoluteDiscountAmount: dto.absoluteDiscountAmount || 0,
+          absoluteDiscountAmount: absoluteDiscountAmount || 0,
           key: dto.key,
           limit: dto.limit,
           name: dto.name,
-          percentageDiscountAmount: dto.percentageDiscountAmount || 0,
+          percentageDiscountAmount: percentageDiscountAmount || 0,
           promoEndDate: dto.promoEndDate,
           promoStartDate: dto.promoStartDate,
           ticketTypes: {
-            connect: dto.applyToTicketIds.map((ticketTypeId) => ({
+            connect: applyToTicketIds.map((ticketTypeId) => ({
               id: ticketTypeId,
             })),
           },
@@ -151,16 +167,29 @@ export class EventsService {
       throw new NotFoundException('Event not found');
     }
 
-    event.ticketTypes.forEach((ticketType, index) => {
+    event.ticketTypes = event.ticketTypes.filter((ticketType, index) => {
       const soldQuantity = ticketType.tickets.length;
 
       event.ticketTypes[index]['soldQuantity'] = soldQuantity;
       // TODO: Handle the fact that it should not be showing in typescript also
       // Delete the tickets field
       delete event.ticketTypes[index].tickets;
+
+      // removing ticket types that are not yet displayable
+      if (ticketType.visibility === 'VISIBLE') {
+        return true;
+      } else if (ticketType.visibility === 'HIDDEN') {
+        return false;
+      } else if (ticketType.visibility === 'CUSTOM_SCHEDULE') {
+        // check if it is within the time period the ticket should show
+        // this is done by comparing if current date is within start and end date
+        return isTicketTypeVisible(ticketType.startDate, ticketType.endDate);
+      } else {
+        return true;
+      }
     });
 
-    event['eventStatus'] = getEventStatus(event.startTime);
+    event['eventStatus'] = getEventStatus(event.endTime);
 
     return event as typeof event & EventStatus;
   }
@@ -172,6 +201,11 @@ export class EventsService {
       },
       include: {
         ticketTypes: true,
+        _count: {
+          select: {
+            order: true,
+          },
+        },
       },
     });
 
@@ -179,7 +213,10 @@ export class EventsService {
       throw new NotFoundException('Invalid promocode');
     }
 
-    return promocode;
+    return {
+      ...promocode,
+      isActive: isPromocodeActive(promocode, promocode._count.order),
+    };
   }
   async getPromocodeById(id: string) {
     const promocode = await this.prisma.promoCode.findFirst({
@@ -188,6 +225,11 @@ export class EventsService {
       },
       include: {
         ticketTypes: true,
+        _count: {
+          select: {
+            order: true,
+          },
+        },
       },
     });
 
@@ -195,7 +237,10 @@ export class EventsService {
       throw new NotFoundException('Promocode not found');
     }
 
-    return promocode;
+    return {
+      ...promocode,
+      isActive: isPromocodeActive(promocode, promocode._count.order),
+    };
   }
 
   async getEvents(paginationQuery: EventsPaginationQueryDto) {
@@ -208,7 +253,7 @@ export class EventsService {
       } = paginationQuery;
 
       const { skip, take } = getPagination({ _page, _limit });
-      const nowInNewYorkUTC = getCurrentNewYorkDateTimeInUTC();
+      const nowUTC = new Date();
       const whereObject: Prisma.EventWhereInput = {
         isPublished: true,
         name: {
@@ -218,11 +263,11 @@ export class EventsService {
         startTime:
           eventStatus === 'past'
             ? {
-                lt: nowInNewYorkUTC,
+                lt: nowUTC,
               }
             : eventStatus === 'upcoming'
               ? {
-                  gt: nowInNewYorkUTC,
+                  gt: nowUTC,
                 }
               : undefined,
       };
@@ -255,7 +300,7 @@ export class EventsService {
         // let eventGross = 0;
         // let totalTickets = 0;
         // let totalSales = 0;
-        const eventStatus = getEventStatus(event.startTime);
+        const eventStatus = getEventStatus(event.endTime);
 
         // event.ticketTypes.forEach((ticketType) => {
         //   eventGross =
@@ -294,7 +339,7 @@ export class EventsService {
       } = paginationQuery;
 
       const { skip, take } = getPagination({ _page, _limit });
-      const nowInNewYorkUTC = getCurrentNewYorkDateTimeInUTC();
+      const nowUTC = new Date();
       const whereObject: Prisma.EventWhereInput = {
         name: {
           contains: search,
@@ -303,11 +348,11 @@ export class EventsService {
         startTime:
           eventStatus === 'past'
             ? {
-                lt: nowInNewYorkUTC,
+                lt: nowUTC,
               }
             : eventStatus === 'upcoming'
               ? {
-                  gt: nowInNewYorkUTC,
+                  gt: nowUTC,
                 }
               : undefined,
       };
@@ -348,7 +393,7 @@ export class EventsService {
         let eventGross = 0;
         let totalTickets = 0;
         let totalSales = 0;
-        const eventStatus = getEventStatus(event.startTime);
+        const eventStatus = getEventStatus(event.endTime);
 
         event.ticketTypes.forEach((ticketType) => {
           eventGross =
@@ -420,17 +465,29 @@ export class EventsService {
         },
         include: {
           ticketTypes: true,
+          _count: {
+            select: {
+              order: true,
+            },
+          },
         },
         orderBy: {
           createdAt: 'desc',
         },
       });
-      return promocodes;
+
+      const extendedPromocodes = promocodes.map((promocode) => {
+        return {
+          ...promocode,
+          isActive: isPromocodeActive(promocode, promocode._count.order),
+          used: promocode._count.order,
+        };
+      });
+      return extendedPromocodes;
     } catch (e) {
       console.log(e);
       throw new HttpException(
         'Unable to retrieve promocodes',
-
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
@@ -463,11 +520,11 @@ export class EventsService {
     const { page, limit } = paginationQuery;
     const skip = page ? Math.abs((Number(page) - 1) * Number(limit)) : page;
     const take = limit ? Number(limit) : undefined;
-    const nowInNewYorkUTC = getCurrentNewYorkDateTimeInUTC();
+    const nowUTC = new Date();
     const event = await this.prisma.event.findMany({
       where: {
         startTime: {
-          gt: nowInNewYorkUTC,
+          gt: nowUTC,
         },
       },
       include: {
@@ -487,11 +544,11 @@ export class EventsService {
     const { page, limit } = paginationQuery;
     const skip = page ? Math.abs((Number(page) - 1) * Number(limit)) : page;
     const take = limit ? Number(limit) : undefined;
-    const nowInNewYorkUTC = getCurrentNewYorkDateTimeInUTC();
+    const nowUTC = new Date();
     const event = await this.prisma.event.findMany({
       where: {
         startTime: {
-          lt: nowInNewYorkUTC,
+          lt: nowUTC,
         },
       },
       include: {
@@ -549,14 +606,28 @@ export class EventsService {
 
   async updateTicketType(
     ticketTypeId: TicketType['id'],
-    dto: UpdatEventTicketTypeDto,
+    { startDate, startTime, endDate, endTime, ...dto }: UpdatEventTicketTypeDto,
   ) {
-    console.log(dto);
+    const utcStartDate = combineDateAndTime(startDate, startTime);
+    const utcEndDate = combineDateAndTime(endDate, endTime);
+
+    if (utcEndDate < utcStartDate) {
+      throw new InternalServerErrorException(
+        'Start time must be lesser than end time',
+      );
+    }
+
     const event = await this.prisma.ticketType.update({
       where: {
         id: ticketTypeId,
       },
-      data: dto,
+      data: {
+        ...dto,
+        startDate: utcStartDate,
+        endDate: utcEndDate,
+        maxQty: dto.maxQty || null,
+        minQty: dto.minQty || 1,
+      },
     });
 
     return event;
