@@ -68,8 +68,14 @@ export class EventsService {
     endTime,
     ...dto
   }: CreateEventTicketTypeDto) {
-    const utcStartDate = combineDateAndTime(startDate, startTime);
-    const utcEndDate = combineDateAndTime(endDate, endTime);
+    const utcStartDate =
+      dto.visibility === 'CUSTOM_SCHEDULE'
+        ? combineDateAndTime(startDate, startTime)
+        : null;
+    const utcEndDate =
+      dto.visibility === 'CUSTOM_SCHEDULE'
+        ? combineDateAndTime(endDate, endTime)
+        : null;
 
     if (utcEndDate < utcStartDate) {
       throw new InternalServerErrorException(
@@ -608,8 +614,14 @@ export class EventsService {
     ticketTypeId: TicketType['id'],
     { startDate, startTime, endDate, endTime, ...dto }: UpdatEventTicketTypeDto,
   ) {
-    const utcStartDate = combineDateAndTime(startDate, startTime);
-    const utcEndDate = combineDateAndTime(endDate, endTime);
+    const utcStartDate =
+      dto.visibility === 'CUSTOM_SCHEDULE'
+        ? combineDateAndTime(startDate, startTime)
+        : null;
+    const utcEndDate =
+      dto.visibility === 'CUSTOM_SCHEDULE'
+        ? combineDateAndTime(endDate, endTime)
+        : null;
 
     if (utcEndDate < utcStartDate) {
       throw new InternalServerErrorException(

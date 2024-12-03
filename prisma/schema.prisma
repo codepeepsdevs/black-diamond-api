@@ -208,11 +208,11 @@ model Event {
 }
 
 model TicketType {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  id        String    @id @default(auto()) @map("_id") @db.ObjectId
   name      String
   quantity  Int
-  startDate DateTime
-  endDate   DateTime
+  startDate DateTime?
+  endDate   DateTime?
   price     Float // A ticket price of zero means a free ticket type..
 
   minQty     Int?                 @default(1)

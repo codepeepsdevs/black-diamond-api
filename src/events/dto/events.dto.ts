@@ -117,20 +117,34 @@ export class CreateEventTicketTypeDto {
   @IsNotEmpty()
   quantity: number;
 
-  @IsDate()
+  @ValidateIf((dto) => dto.visibility === 'CUSTOM_SCHEDULE')
+  @IsDate({ message: 'Start date must be a valid date' })
   @Type(() => Date)
+  @IsNotEmpty({
+    message: 'Start date is required when visibility is a custom schedule',
+  })
   startDate: Date;
 
-  @IsString()
-  @IsNotEmpty()
+  @ValidateIf((dto) => dto.visibility === 'CUSTOM_SCHEDULE')
+  @IsString({ message: 'Start time must be a string' })
+  @IsNotEmpty({
+    message: 'Start time is required when visibility is a custom schedule',
+  })
   startTime: string;
 
-  @IsDate()
+  @ValidateIf((dto) => dto.visibility === 'CUSTOM_SCHEDULE')
+  @IsDate({ message: 'End date must be a valid date' })
   @Type(() => Date)
+  @IsNotEmpty({
+    message: 'End date is required when visibility is custom schedule',
+  })
   endDate: Date;
 
-  @IsString()
-  @IsNotEmpty()
+  @ValidateIf((dto) => dto.visibility === 'CUSTOM_SCHEDULE')
+  @IsString({ message: 'End time must be a string' })
+  @IsNotEmpty({
+    message: 'End time is required when visibility is custom schedule',
+  })
   endTime: string;
 
   @Type(() => Number)
@@ -148,13 +162,17 @@ export class CreateEventTicketTypeDto {
   })
   visibility: TicketTypeVisibility;
 
-  @IsNumber()
+  @ValidateIf((o) => o.maxQty != undefined) // Only validate if minQty is provided
   @Optional()
+  @IsInt({ message: 'minQty must be a number' })
+  @Min(1, { message: 'minQty must be at least 1' })
   @Type(() => Number)
   minQty?: number;
 
-  @IsNumber()
+  @ValidateIf((o) => o.maxQty != undefined) // Only validate if maxQty is provided
   @Optional()
+  @IsInt({ message: 'maxQty must be a number' })
+  @Min(1, { message: 'maxQty must be at least 1' })
   @Type(() => Number)
   maxQty?: number;
 }
@@ -349,20 +367,32 @@ export class UpdatEventTicketTypeDto {
   @Type(() => Number)
   quantity: number;
 
+  @ValidateIf(
+    (dto: UpdatEventTicketTypeDto) => dto.visibility === 'CUSTOM_SCHEDULE',
+  )
   @IsOptional()
   @IsDate()
   @Type(() => Date)
   startDate: Date;
 
+  @ValidateIf(
+    (dto: UpdatEventTicketTypeDto) => dto.visibility === 'CUSTOM_SCHEDULE',
+  )
   @IsString()
   @IsNotEmpty()
   startTime: string;
 
+  @ValidateIf(
+    (dto: UpdatEventTicketTypeDto) => dto.visibility === 'CUSTOM_SCHEDULE',
+  )
   @IsOptional()
   @IsDate()
   @Type(() => Date)
   endDate: Date;
 
+  @ValidateIf(
+    (dto: UpdatEventTicketTypeDto) => dto.visibility === 'CUSTOM_SCHEDULE',
+  )
   @IsString()
   @IsNotEmpty()
   endTime: string;
