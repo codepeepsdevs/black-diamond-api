@@ -11,7 +11,7 @@ import {
   Min,
   ValidateIf,
 } from 'class-validator';
-import { IsAOrB, IsStartDateBeforeEndDate } from './custom-validator';
+import { IsAOrB } from './custom-validator';
 import { LocationType, TicketTypeVisibility } from '@prisma/client';
 import { Optional } from '@nestjs/common';
 
@@ -70,16 +70,31 @@ export class CreateEventDetailsDto {
   @IsString()
   location: string;
 
-  @IsDate()
+  @IsDate({ message: 'Start date must be a valid date' })
   @Type(() => Date)
-  startTime: Date;
-
-  @IsDate()
-  @Type(() => Date)
-  @IsStartDateBeforeEndDate('startTime', {
-    message: 'End date-time must be after start-time date',
+  @IsNotEmpty({
+    message: 'Start date is required',
   })
-  endTime: Date;
+  startDate: Date;
+
+  @IsString({ message: 'Start time must be a string' })
+  @IsNotEmpty({
+    message: 'Start time is required',
+  })
+  startTime: string;
+
+  @IsDate({ message: 'End date must be a valid date' })
+  @Type(() => Date)
+  @IsNotEmpty({
+    message: 'End date is required',
+  })
+  endDate: Date;
+
+  @IsString({ message: 'End time must be a string' })
+  @IsNotEmpty({
+    message: 'End time is required',
+  })
+  endTime: string;
 
   // @IsDate()
   // @Type(() => Date)
@@ -327,13 +342,31 @@ export class UpdateEventDto {
   @IsString()
   locationType?: LocationType;
 
-  @IsDate()
+  @IsDate({ message: 'Start date must be a valid date' })
   @Type(() => Date)
-  startTime?: Date;
+  @IsNotEmpty({
+    message: 'Start date is required',
+  })
+  startDate: Date;
 
-  @IsDate()
+  @IsString({ message: 'Start time must be a string' })
+  @IsNotEmpty({
+    message: 'Start time is required',
+  })
+  startTime: string;
+
+  @IsDate({ message: 'End date must be a valid date' })
   @Type(() => Date)
-  endTime?: Date;
+  @IsNotEmpty({
+    message: 'End date is required',
+  })
+  endDate: Date;
+
+  @IsString({ message: 'End time must be a string' })
+  @IsNotEmpty({
+    message: 'End time is required',
+  })
+  endTime: string;
 
   // @IsDate()
   // @Type(() => Date)

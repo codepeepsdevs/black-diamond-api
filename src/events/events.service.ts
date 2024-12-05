@@ -34,16 +34,27 @@ export class EventsService {
   constructor(private prisma: PrismaService) {}
 
   async createEventDetails(
-    dto: CreateEventDetailsDto,
+    { startDate, startTime, endDate, endTime, ...dto }: CreateEventDetailsDto,
     coverImage: Express.Multer.File[],
     images: Express.Multer.File[],
   ) {
+    const utcStartTime = combineDateAndTime(startDate, startTime);
+    const utcEndTime = combineDateAndTime(endDate, endTime);
+
+    if (utcStartTime > utcEndTime) {
+      throw new InternalServerErrorException(
+        'End date must be after start date',
+      );
+    }
+
     try {
       const event = await this.prisma.event.create({
         data: {
           ...dto,
           coverImage: coverImage[0].path,
           images: images.map((image) => image.path),
+          startTime: utcStartTime,
+          endTime: utcEndTime,
         },
         include: {
           ticketTypes: true,
@@ -572,10 +583,20 @@ export class EventsService {
 
   async updateEvent(
     eventId: Event['id'],
-    dto: UpdateEventDto,
+    { startDate, startTime, endDate, endTime, ...dto }: UpdateEventDto,
     coverImage?: Express.Multer.File[],
     images?: Express.Multer.File[],
   ) {
+    const utcStartTime = combineDateAndTime(startDate, startTime);
+    const utcEndTime = combineDateAndTime(endDate, endTime);
+
+    console.table({ utcStartTime, utcEndTime });
+    if (utcStartTime > utcEndTime) {
+      throw new InternalServerErrorException(
+        'End date must be after start date',
+      );
+    }
+
     const oldDetails = await this.prisma.event.findFirst({
       where: {
         id: eventId,
@@ -598,7 +619,13 @@ export class EventsService {
         where: {
           id: eventId,
         },
-        data: { ...dto, images: newImages, coverImage: newCoverImage },
+        data: {
+          ...dto,
+          images: newImages,
+          coverImage: newCoverImage,
+          startTime: utcStartTime,
+          endTime: utcEndTime,
+        },
       });
 
       return event;
