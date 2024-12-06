@@ -45,13 +45,16 @@ export const convertDateToNewYorkTimeInUTC = (date: Date) => {
 export const getEventStatus = (endTime: Date) => {
   const nowUTC = new Date();
   // const zonedStartTime = dateFnsTz.toZonedTime(endTime, newYorkTimeZone);
-  return endTime > nowUTC ? 'UPCOMING' : 'PAST';
+  return endTime.getTime() > nowUTC.getTime() ? 'UPCOMING' : 'PAST';
 };
 
 export const isTicketTypeVisible = (startDate: Date, endDate: Date) => {
   const nowUTC = new Date();
 
-  if (nowUTC >= startDate && nowUTC <= endDate) {
+  if (
+    nowUTC.getTime() >= startDate.getTime() &&
+    nowUTC.getTime() <= endDate.getTime()
+  ) {
     return true;
   } else {
     return false;
@@ -72,8 +75,8 @@ export const isPromocodeActive = (promocode: PromoCode, orderCount: number) => {
   if (orderCount < promocode.limit) {
     isActive = true;
   } else if (
-    nowUTC >= promocode.promoStartDate &&
-    nowUTC < promocode.promoEndDate
+    nowUTC.getTime() >= promocode.promoStartDate.getTime() &&
+    nowUTC.getTime() < promocode.promoEndDate.getTime()
   ) {
     isActive = true;
   } else {

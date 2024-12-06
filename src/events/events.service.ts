@@ -42,7 +42,15 @@ export class EventsService {
     const utcStartTime = combineDateAndTime(startDate, startTime);
     const utcEndTime = combineDateAndTime(endDate, endTime);
 
-    if (utcStartTime > utcEndTime) {
+    console.table({
+      isoEndTime: utcEndTime.toISOString(),
+      isoStartTime: utcStartTime.toISOString(),
+      endTimestamp: utcEndTime.getTime(),
+      startTimestamp: utcStartTime.getTime(),
+      greater: utcEndTime.getTime() > utcEndTime.getTime(),
+    });
+
+    if (utcStartTime.getTime() > utcEndTime.getTime()) {
       throw new InternalServerErrorException(
         'End date must be after start date',
       );
@@ -89,9 +97,9 @@ export class EventsService {
         ? combineDateAndTime(endDate, endTime)
         : null;
 
-    if (utcEndDate < utcStartDate) {
+    if (utcEndDate.getTime() < utcStartDate.getTime()) {
       throw new InternalServerErrorException(
-        'Start time must be lesser than end time',
+        'Start time must be after than end time',
       );
     }
 
@@ -591,7 +599,7 @@ export class EventsService {
     const utcStartTime = combineDateAndTime(startDate, startTime);
     const utcEndTime = combineDateAndTime(endDate, endTime);
 
-    if (utcStartTime > utcEndTime) {
+    if (utcStartTime.getTime() > utcEndTime.getTime()) {
       throw new InternalServerErrorException(
         'End date must be after start date',
       );
@@ -650,7 +658,7 @@ export class EventsService {
         ? combineDateAndTime(endDate, endTime)
         : null;
 
-    if (utcEndDate < utcStartDate) {
+    if (utcEndDate.getTime() < utcStartDate.getTime()) {
       throw new InternalServerErrorException(
         'Start time must be lesser than end time',
       );
