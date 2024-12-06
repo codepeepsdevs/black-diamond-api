@@ -202,6 +202,20 @@ export class EventsController {
   }
 
   @UseGuards(JwtAuthenticationGuard, RolesGuard)
+  @Roles()
+  @Get('inc-pageview/:eventId')
+  async incPageView(@Param('eventId') eventId: string) {
+    return this.eventsService.incPageView({ eventId });
+  }
+
+  @UseGuards(JwtAuthenticationGuard, RolesGuard)
+  @Roles(UserRole.admin)
+  @Get('view-count/:eventId')
+  async viewCount(@Param('eventId') eventId: string) {
+    return this.eventsService.viewCount({ eventId });
+  }
+
+  @UseGuards(JwtAuthenticationGuard, RolesGuard)
   @Roles(UserRole.admin)
   @Put('publish-event/:eventId')
   async publishEvent(@Param('eventId') eventId: string) {

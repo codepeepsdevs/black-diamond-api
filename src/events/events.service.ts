@@ -12,6 +12,7 @@ import {
   CreateEventPromoCode,
   CreateEventTicketTypeDto,
   GetPromocodeDto,
+  PageViewDto,
   UpdateEventDto,
   UpdatEventTicketTypeDto,
 } from './dto/events.dto';
@@ -590,7 +591,6 @@ export class EventsService {
     const utcStartTime = combineDateAndTime(startDate, startTime);
     const utcEndTime = combineDateAndTime(endDate, endTime);
 
-    console.table({ utcStartTime, utcEndTime });
     if (utcStartTime > utcEndTime) {
       throw new InternalServerErrorException(
         'End date must be after start date',
@@ -691,6 +691,45 @@ export class EventsService {
     } catch (e) {
       console.log(e);
       throw new InternalServerErrorException('Unable to getch event revenue');
+    }
+  }
+
+  async incPageView(dto: PageViewDto) {
+    const eventId = dto.eventId;
+    await this.prisma.pageView.upsert({
+      where: {
+        eventId,
+      },
+      create: { eventId, views: 1, createdAt: new Date() },
+      update: { views: { increment: 1 } },
+    });
+
+    return;
+  }
+
+  async viewCount(dto: PageViewDto) {
+    const eventId = dto.eventId;
+
+    try {
+      const pageView = await this.prisma.pageView.findFirst({
+        where: {
+          eventId,
+        },
+      });
+
+      if (!pageView) {
+        return {
+          views: 0,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          eventId: dto.eventId,
+        };
+      }
+
+      return pageView;
+    } catch (e) {
+      console.log(e);
+      throw new InternalServerErrorException('Error fetching page view');
     }
   }
 

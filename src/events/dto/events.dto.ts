@@ -487,3 +487,9 @@ export class RemoveImageDto {
   @IsNotEmpty({ message: 'Image to delete must be provided' })
   image: string;
 }
+
+export class PageViewDto {
+  @IsString()
+  @IsNotEmpty()
+  eventId: string;
+}

@@ -356,3 +356,11 @@ model Promoter {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+model PageView {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  eventId   String   @unique
+  views     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
