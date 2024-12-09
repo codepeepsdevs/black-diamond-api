@@ -7,7 +7,7 @@ import {
   GOOGLE_CLIENT_ID,
   GOOGLE_CLIENT_SECRET,
 } from 'src/constants';
-import { PrismaService } from '../../prisma.service';
+import { PrismaService } from '../../prisma/prisma.service';
 import { UsersService } from 'src/users/users.service';
 
 @Injectable()

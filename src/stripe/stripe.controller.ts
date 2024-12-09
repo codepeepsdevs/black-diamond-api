@@ -10,10 +10,7 @@ import { ConfigService } from '@nestjs/config';
 import { OrdersService } from 'src/orders/orders.service';
 import { EmailsService } from 'src/emails/emails.service';
 import { FRONTEND_URL } from 'src/constants';
-import {
-  getTimeZoneDateRange,
-  newYorkTimeZone,
-} from 'src/utils/date-formatter';
+import { getTimeZoneDateRange, newYorkTimeZone } from 'src/utils/helpers';
 import * as dateFnsTz from 'date-fns-tz';
 
 @Controller('stripe')

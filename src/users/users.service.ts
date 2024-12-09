@@ -8,7 +8,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
-import { PrismaService } from 'src/prisma.service';
+import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserInfoDto } from './dto/update.user.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
@@ -17,7 +17,7 @@ import { AuthMethod, User } from '@prisma/client';
 import { PaginationQueryDto } from 'src/shared/dto/pagination-query.dto';
 import { GetUsersStatsDto } from './dto/users.dto';
 import * as dateFns from 'date-fns';
-import { convertDateToNewYorkTimeInUTC } from 'src/utils/date-formatter';
+import { convertDateToNewYorkTimeInUTC } from 'src/utils/helpers';
 import * as XLSX from 'xlsx';
 
 @Injectable()

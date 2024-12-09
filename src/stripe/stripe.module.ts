@@ -3,7 +3,6 @@ import { StripeController } from './stripe.controller';
 import { StripeService } from './stripe.service';
 import { ConfigService } from '@nestjs/config';
 import { EventsService } from 'src/events/events.service';
-import { PrismaService } from 'src/prisma.service';
 import { OrdersService } from 'src/orders/orders.service';
 import { EmailsService } from 'src/emails/emails.service';
 import { JwtService } from '@nestjs/jwt';
@@ -17,7 +16,6 @@ import { NewsletterService } from 'src/newsletter/newsletter.service';
     StripeService,
     ConfigService,
     EventsService,
-    PrismaService,
     OrdersService,
     EmailsService,
     JwtService,

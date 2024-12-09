@@ -202,6 +202,20 @@ export class EventsController {
   }
 
   @UseGuards(JwtAuthenticationGuard, RolesGuard)
+  @Roles()
+  @Get('inc-pageview/:eventId')
+  async incPageView(@Param('eventId') eventId: string) {
+    return this.eventsService.incPageView({ eventId });
+  }
+
+  @UseGuards(JwtAuthenticationGuard, RolesGuard)
+  @Roles(UserRole.admin)
+  @Get('view-count/:eventId')
+  async viewCount(@Param('eventId') eventId: string) {
+    return this.eventsService.viewCount({ eventId });
+  }
+
+  @UseGuards(JwtAuthenticationGuard, RolesGuard)
   @Roles(UserRole.admin)
   @Put('publish-event/:eventId')
   async publishEvent(@Param('eventId') eventId: string) {
@@ -228,7 +242,14 @@ export class EventsController {
   @UseGuards(JwtAuthenticationGuard, RolesGuard)
   @Roles('admin')
   @Delete('delete-event/:eventId')
-  async deleteEvent(@Param('eventId') ticketId: string) {
-    return this.eventsService.deleteEvent(ticketId);
+  async deleteEvent(@Param('eventId') eventId: string) {
+    return this.eventsService.deleteEvent(eventId);
+  }
+
+  @UseGuards(JwtAuthenticationGuard, RolesGuard)
+  @Roles('admin')
+  @Delete('ticket-type/:ticketTypeId')
+  async deleteTicketType(@Param('ticketTypeId') ticketTypeId: string) {
+    return this.eventsService.deleteTicketType(ticketTypeId);
   }
 }

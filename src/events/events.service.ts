@@ -5,13 +5,14 @@ import {
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
-import { PrismaService } from 'src/prisma.service';
+import { PrismaService } from 'src/prisma/prisma.service';
 import {
   CreateEventAddonDto,
   CreateEventDetailsDto,
   CreateEventPromoCode,
   CreateEventTicketTypeDto,
   GetPromocodeDto,
+  PageViewDto,
   UpdateEventDto,
   UpdatEventTicketTypeDto,
 } from './dto/events.dto';
@@ -20,9 +21,11 @@ import { PaginationQueryDto } from 'src/shared/dto/pagination-query.dto';
 import { EventStatusPaginationQueryDto as EventsPaginationQueryDto } from './dto/events.dto';
 import { getPagination } from 'src/utils/get-pagination';
 import {
-  getCurrentNewYorkDateTimeInUTC,
+  combineDateAndTime,
   getEventStatus,
-} from 'src/utils/date-formatter';
+  isPromocodeActive,
+  isTicketTypeVisible,
+} from 'src/utils/helpers';
 // import { cloudinary } from 'src/cloudinary/cloudinary.config';
 
 export type EventStatus = { eventStatus: 'UPCOMING' | 'PAST' };
@@ -32,16 +35,27 @@ export class EventsService {
   constructor(private prisma: PrismaService) {}
 
   async createEventDetails(
-    dto: CreateEventDetailsDto,
+    { startDate, startTime, endDate, endTime, ...dto }: CreateEventDetailsDto,
     coverImage: Express.Multer.File[],
     images: Express.Multer.File[],
   ) {
+    const utcStartTime = combineDateAndTime(startDate, startTime);
+    const utcEndTime = combineDateAndTime(endDate, endTime);
+
+    if (utcStartTime.getTime() > utcEndTime.getTime()) {
+      throw new InternalServerErrorException(
+        'End date must be after start date',
+      );
+    }
+
     try {
       const event = await this.prisma.event.create({
         data: {
           ...dto,
           coverImage: coverImage[0].path,
           images: images.map((image) => image.path),
+          startTime: utcStartTime,
+          endTime: utcEndTime,
         },
         include: {
           ticketTypes: true,
@@ -59,17 +73,35 @@ export class EventsService {
     }
   }
 
-  async createEventTicketType(dto: CreateEventTicketTypeDto) {
+  async createEventTicketType({
+    startDate,
+    startTime,
+    endDate,
+    endTime,
+    ...dto
+  }: CreateEventTicketTypeDto) {
+    const utcStartDate =
+      dto.visibility === 'CUSTOM_SCHEDULE'
+        ? combineDateAndTime(startDate, startTime)
+        : null;
+    const utcEndDate =
+      dto.visibility === 'CUSTOM_SCHEDULE'
+        ? combineDateAndTime(endDate, endTime)
+        : null;
+
+    if (
+      dto.visibility === 'CUSTOM_SCHEDULE' &&
+      utcEndDate.getTime() < utcStartDate.getTime()
+    ) {
+      throw new InternalServerErrorException(
+        'Start time must be after than end time',
+      );
+    }
+
     try {
       const ticketType = await this.prisma.ticketType.create({
-        data: dto,
+        data: { ...dto, startDate: utcStartDate, endDate: utcEndDate },
       });
-
-      // const eventTicketTypes = this.prisma.ticketType.findMany({
-      //   where: {
-      //     eventId: dto.eventId,
-      //   },
-      // });
 
       return ticketType;
     } catch (e) {
@@ -80,19 +112,24 @@ export class EventsService {
     }
   }
 
-  async createEventPromoCode(dto: CreateEventPromoCode) {
+  async createEventPromoCode({
+    absoluteDiscountAmount,
+    percentageDiscountAmount,
+    applyToTicketIds,
+    ...dto
+  }: CreateEventPromoCode) {
     try {
       const newPromoCode = await this.prisma.promoCode.create({
         data: {
-          absoluteDiscountAmount: dto.absoluteDiscountAmount || 0,
+          absoluteDiscountAmount: absoluteDiscountAmount || 0,
           key: dto.key,
           limit: dto.limit,
           name: dto.name,
-          percentageDiscountAmount: dto.percentageDiscountAmount || 0,
+          percentageDiscountAmount: percentageDiscountAmount || 0,
           promoEndDate: dto.promoEndDate,
           promoStartDate: dto.promoStartDate,
           ticketTypes: {
-            connect: dto.applyToTicketIds.map((ticketTypeId) => ({
+            connect: applyToTicketIds.map((ticketTypeId) => ({
               id: ticketTypeId,
             })),
           },
@@ -151,16 +188,29 @@ export class EventsService {
       throw new NotFoundException('Event not found');
     }
 
-    event.ticketTypes.forEach((ticketType, index) => {
+    event.ticketTypes = event.ticketTypes.filter((ticketType, index) => {
       const soldQuantity = ticketType.tickets.length;
 
       event.ticketTypes[index]['soldQuantity'] = soldQuantity;
       // TODO: Handle the fact that it should not be showing in typescript also
       // Delete the tickets field
       delete event.ticketTypes[index].tickets;
+
+      // removing ticket types that are not yet displayable
+      if (ticketType.visibility === 'VISIBLE') {
+        return true;
+      } else if (ticketType.visibility === 'HIDDEN') {
+        return false;
+      } else if (ticketType.visibility === 'CUSTOM_SCHEDULE') {
+        // check if it is within the time period the ticket should show
+        // this is done by comparing if current date is within start and end date
+        return isTicketTypeVisible(ticketType.startDate, ticketType.endDate);
+      } else {
+        return true;
+      }
     });
 
-    event['eventStatus'] = getEventStatus(event.startTime);
+    event['eventStatus'] = getEventStatus(event.endTime);
 
     return event as typeof event & EventStatus;
   }
@@ -172,6 +222,11 @@ export class EventsService {
       },
       include: {
         ticketTypes: true,
+        _count: {
+          select: {
+            order: true,
+          },
+        },
       },
     });
 
@@ -179,7 +234,10 @@ export class EventsService {
       throw new NotFoundException('Invalid promocode');
     }
 
-    return promocode;
+    return {
+      ...promocode,
+      isActive: isPromocodeActive(promocode, promocode._count.order),
+    };
   }
   async getPromocodeById(id: string) {
     const promocode = await this.prisma.promoCode.findFirst({
@@ -188,6 +246,11 @@ export class EventsService {
       },
       include: {
         ticketTypes: true,
+        _count: {
+          select: {
+            order: true,
+          },
+        },
       },
     });
 
@@ -195,7 +258,10 @@ export class EventsService {
       throw new NotFoundException('Promocode not found');
     }
 
-    return promocode;
+    return {
+      ...promocode,
+      isActive: isPromocodeActive(promocode, promocode._count.order),
+    };
   }
 
   async getEvents(paginationQuery: EventsPaginationQueryDto) {
@@ -208,7 +274,7 @@ export class EventsService {
       } = paginationQuery;
 
       const { skip, take } = getPagination({ _page, _limit });
-      const nowInNewYorkUTC = getCurrentNewYorkDateTimeInUTC();
+      const nowUTC = new Date();
       const whereObject: Prisma.EventWhereInput = {
         isPublished: true,
         name: {
@@ -218,11 +284,11 @@ export class EventsService {
         startTime:
           eventStatus === 'past'
             ? {
-                lt: nowInNewYorkUTC,
+                lt: nowUTC,
               }
             : eventStatus === 'upcoming'
               ? {
-                  gt: nowInNewYorkUTC,
+                  gt: nowUTC,
                 }
               : undefined,
       };
@@ -255,7 +321,7 @@ export class EventsService {
         // let eventGross = 0;
         // let totalTickets = 0;
         // let totalSales = 0;
-        const eventStatus = getEventStatus(event.startTime);
+        const eventStatus = getEventStatus(event.endTime);
 
         // event.ticketTypes.forEach((ticketType) => {
         //   eventGross =
@@ -294,7 +360,7 @@ export class EventsService {
       } = paginationQuery;
 
       const { skip, take } = getPagination({ _page, _limit });
-      const nowInNewYorkUTC = getCurrentNewYorkDateTimeInUTC();
+      const nowUTC = new Date();
       const whereObject: Prisma.EventWhereInput = {
         name: {
           contains: search,
@@ -303,11 +369,11 @@ export class EventsService {
         startTime:
           eventStatus === 'past'
             ? {
-                lt: nowInNewYorkUTC,
+                lt: nowUTC,
               }
             : eventStatus === 'upcoming'
               ? {
-                  gt: nowInNewYorkUTC,
+                  gt: nowUTC,
                 }
               : undefined,
       };
@@ -348,7 +414,7 @@ export class EventsService {
         let eventGross = 0;
         let totalTickets = 0;
         let totalSales = 0;
-        const eventStatus = getEventStatus(event.startTime);
+        const eventStatus = getEventStatus(event.endTime);
 
         event.ticketTypes.forEach((ticketType) => {
           eventGross =
@@ -420,17 +486,29 @@ export class EventsService {
         },
         include: {
           ticketTypes: true,
+          _count: {
+            select: {
+              order: true,
+            },
+          },
         },
         orderBy: {
           createdAt: 'desc',
         },
       });
-      return promocodes;
+
+      const extendedPromocodes = promocodes.map((promocode) => {
+        return {
+          ...promocode,
+          isActive: isPromocodeActive(promocode, promocode._count.order),
+          used: promocode._count.order,
+        };
+      });
+      return extendedPromocodes;
     } catch (e) {
       console.log(e);
       throw new HttpException(
         'Unable to retrieve promocodes',
-
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
@@ -463,11 +541,11 @@ export class EventsService {
     const { page, limit } = paginationQuery;
     const skip = page ? Math.abs((Number(page) - 1) * Number(limit)) : page;
     const take = limit ? Number(limit) : undefined;
-    const nowInNewYorkUTC = getCurrentNewYorkDateTimeInUTC();
+    const nowUTC = new Date();
     const event = await this.prisma.event.findMany({
       where: {
         startTime: {
-          gt: nowInNewYorkUTC,
+          gt: nowUTC,
         },
       },
       include: {
@@ -487,11 +565,11 @@ export class EventsService {
     const { page, limit } = paginationQuery;
     const skip = page ? Math.abs((Number(page) - 1) * Number(limit)) : page;
     const take = limit ? Number(limit) : undefined;
-    const nowInNewYorkUTC = getCurrentNewYorkDateTimeInUTC();
+    const nowUTC = new Date();
     const event = await this.prisma.event.findMany({
       where: {
         startTime: {
-          lt: nowInNewYorkUTC,
+          lt: nowUTC,
         },
       },
       include: {
@@ -509,10 +587,19 @@ export class EventsService {
 
   async updateEvent(
     eventId: Event['id'],
-    dto: UpdateEventDto,
+    { startDate, startTime, endDate, endTime, ...dto }: UpdateEventDto,
     coverImage?: Express.Multer.File[],
     images?: Express.Multer.File[],
   ) {
+    const utcStartTime = combineDateAndTime(startDate, startTime);
+    const utcEndTime = combineDateAndTime(endDate, endTime);
+
+    if (utcStartTime.getTime() > utcEndTime.getTime()) {
+      throw new InternalServerErrorException(
+        'End date must be after start date',
+      );
+    }
+
     const oldDetails = await this.prisma.event.findFirst({
       where: {
         id: eventId,
@@ -535,7 +622,13 @@ export class EventsService {
         where: {
           id: eventId,
         },
-        data: { ...dto, images: newImages, coverImage: newCoverImage },
+        data: {
+          ...dto,
+          images: newImages,
+          coverImage: newCoverImage,
+          startTime: utcStartTime,
+          endTime: utcEndTime,
+        },
       });
 
       return event;
@@ -549,14 +642,37 @@ export class EventsService {
 
   async updateTicketType(
     ticketTypeId: TicketType['id'],
-    dto: UpdatEventTicketTypeDto,
+    { startDate, startTime, endDate, endTime, ...dto }: UpdatEventTicketTypeDto,
   ) {
-    console.log(dto);
+    const utcStartDate =
+      dto.visibility === 'CUSTOM_SCHEDULE'
+        ? combineDateAndTime(startDate, startTime)
+        : null;
+    const utcEndDate =
+      dto.visibility === 'CUSTOM_SCHEDULE'
+        ? combineDateAndTime(endDate, endTime)
+        : null;
+
+    if (
+      dto.visibility === 'CUSTOM_SCHEDULE' &&
+      utcEndDate.getTime() < utcStartDate.getTime()
+    ) {
+      throw new InternalServerErrorException(
+        'Start time must be lesser than end time',
+      );
+    }
+
     const event = await this.prisma.ticketType.update({
       where: {
         id: ticketTypeId,
       },
-      data: dto,
+      data: {
+        ...dto,
+        startDate: utcStartDate,
+        endDate: utcEndDate,
+        maxQty: dto.maxQty || null,
+        minQty: dto.minQty || 1,
+      },
     });
 
     return event;
@@ -581,6 +697,45 @@ export class EventsService {
     } catch (e) {
       console.log(e);
       throw new InternalServerErrorException('Unable to getch event revenue');
+    }
+  }
+
+  async incPageView(dto: PageViewDto) {
+    const eventId = dto.eventId;
+    await this.prisma.pageView.upsert({
+      where: {
+        eventId,
+      },
+      create: { eventId, views: 1, createdAt: new Date() },
+      update: { views: { increment: 1 } },
+    });
+
+    return;
+  }
+
+  async viewCount(dto: PageViewDto) {
+    const eventId = dto.eventId;
+
+    try {
+      const pageView = await this.prisma.pageView.findFirst({
+        where: {
+          eventId,
+        },
+      });
+
+      if (!pageView) {
+        return {
+          views: 0,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          eventId: dto.eventId,
+        };
+      }
+
+      return pageView;
+    } catch (e) {
+      console.log(e);
+      throw new InternalServerErrorException('Error fetching page view');
     }
   }
 
@@ -698,13 +853,210 @@ export class EventsService {
     }
   }
 
-  async deleteEvent(ticketId: Event['id']) {
-    const event = await this.prisma.event.delete({
+  async deleteEvent(eventId: Event['id']) {
+    const eventDetails = await this.prisma.event.findFirst({
       where: {
-        id: ticketId,
+        id: eventId,
+      },
+      include: {
+        addons: {
+          select: {
+            id: true,
+            addonOrder: {
+              select: {
+                id: true,
+              },
+            },
+          },
+        },
+        order: {
+          select: {
+            id: true,
+          },
+        },
+        ticketTypes: {
+          select: {
+            id: true,
+            promoCodeIds: true,
+            tickets: {
+              select: {
+                id: true,
+              },
+            },
+          },
+        },
       },
     });
 
-    return event;
+    if (!eventDetails) {
+      throw new NotFoundException('Event to delete not found');
+    }
+
+    const allPromocodes = eventDetails.ticketTypes.reduce(
+      (accValue: string[], ticketType) => {
+        return accValue.concat(ticketType.promoCodeIds);
+      },
+      [],
+    );
+    const allTickets = eventDetails.ticketTypes.reduce(
+      (accValue: string[], ticketType) => {
+        return accValue.concat(ticketType.tickets.map((ticket) => ticket.id));
+      },
+      [],
+    );
+    const allTicketTypes = eventDetails.ticketTypes.map(
+      (ticketType) => ticketType.id,
+    );
+    const allAddonOrders = eventDetails.addons.reduce(
+      (accValue: string[], addon) => {
+        return accValue.concat(addon.addonOrder.map((ticket) => ticket.id));
+      },
+      [],
+    );
+    const allAddons = eventDetails.addons.map((addon) => addon.id);
+    const allOrders = eventDetails.order.map((order) => order.id);
+
+    // DELETE QUERIES
+    const deletePromocodes = this.prisma.promoCode.deleteMany({
+      where: {
+        id: {
+          in: allPromocodes,
+        },
+      },
+    });
+    const deleteTickets = this.prisma.ticket.deleteMany({
+      where: {
+        id: {
+          in: allTickets,
+        },
+      },
+    });
+    const deleteTicketTypes = this.prisma.ticketType.deleteMany({
+      where: {
+        id: {
+          in: allTicketTypes,
+        },
+      },
+    });
+    const deleteAddonOrders = this.prisma.addonOrder.deleteMany({
+      where: {
+        id: {
+          in: allAddonOrders,
+        },
+      },
+    });
+    const deleteAddons = this.prisma.eventAddons.deleteMany({
+      where: {
+        id: {
+          in: allAddons,
+        },
+      },
+    });
+    const deleteOrders = this.prisma.eventAddons.deleteMany({
+      where: {
+        id: {
+          in: allOrders,
+        },
+      },
+    });
+    const deletePageViews = this.prisma.pageView.deleteMany({
+      where: {
+        eventId: eventDetails.id,
+      },
+    });
+
+    const deleteEvent = this.prisma.event.delete({
+      where: {
+        id: eventDetails.id,
+      },
+    });
+    // TODO: Delete images from cloudinary
+    // END DELETE QUERIES
+
+    try {
+      await this.prisma.$transaction([
+        deletePromocodes,
+        deleteTickets,
+        deleteTicketTypes,
+        deleteAddonOrders,
+        deleteAddons,
+        deleteOrders,
+        deletePageViews,
+        deleteEvent,
+      ]);
+
+      return {
+        message: 'Event deleted successfully',
+        eventId: eventId,
+      };
+    } catch (e) {
+      console.log(e);
+      throw new InternalServerErrorException('Error deleting event');
+    }
+  }
+
+  async deleteTicketType(ticketTypeId: string) {
+    const ticketType = await this.prisma.ticketType.findFirst({
+      where: {
+        id: ticketTypeId,
+      },
+      include: {
+        tickets: true,
+        promoCodes: true,
+      },
+    });
+
+    if (!ticketType) {
+      throw new NotFoundException('Ticket type not found');
+    }
+
+    const deletePromocodes = ticketType.promoCodeIds.map(
+      (promocodeId, index) => {
+        const ticketTypeIds = ticketType.promoCodes[index].ticketTypeIds.filter(
+          (_ticketTypeId) => _ticketTypeId !== ticketTypeId,
+        );
+        return this.prisma.promoCode.updateMany({
+          where: {
+            id: promocodeId,
+          },
+          data: {
+            ticketTypeIds: ticketTypeIds,
+          },
+        });
+      },
+    );
+
+    const deleteTickets = this.prisma.ticket.deleteMany({
+      where: {
+        ticketTypeId: ticketTypeId,
+      },
+    });
+
+    const deleteTicketType = this.prisma.ticketType.delete({
+      where: {
+        id: ticketTypeId,
+      },
+    });
+
+    try {
+      // Start a transaction to ensure atomic operations
+      await this.prisma.$transaction([
+        // Update PromoCodes to remove the deleted TicketType ID
+        ...deletePromocodes,
+        // Delete Tickets of tickettype
+        deleteTickets,
+        // Delete the TicketType
+        deleteTicketType,
+      ]);
+      console.log('TicketType and related records deleted successfully');
+
+      return {
+        message: 'Ticket type successfully deleted',
+        ticketTypeId: ticketTypeId,
+        eventId: ticketType.eventId,
+      };
+    } catch (error) {
+      console.error('Error deleting TicketType:', error);
+    }
   }
 }

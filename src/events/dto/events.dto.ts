@@ -2,13 +2,18 @@ import { Transform, Type } from 'class-transformer';
 import {
   IsArray,
   IsDate,
+  IsEnum,
+  IsInt,
   IsNotEmpty,
   IsNumber,
   IsOptional,
   IsString,
+  Min,
+  ValidateIf,
 } from 'class-validator';
-import { IsAOrB, IsStartDateBeforeEndDate } from './custom-validator';
-import { LocationType } from '@prisma/client';
+import { IsAOrB } from './custom-validator';
+import { LocationType, TicketTypeVisibility } from '@prisma/client';
+import { Optional } from '@nestjs/common';
 
 // class TicketTypeDto {
 //   @IsString()
@@ -65,16 +70,31 @@ export class CreateEventDetailsDto {
   @IsString()
   location: string;
 
-  @IsDate()
+  @IsDate({ message: 'Start date must be a valid date' })
   @Type(() => Date)
-  startTime: Date;
-
-  @IsDate()
-  @Type(() => Date)
-  @IsStartDateBeforeEndDate('startTime', {
-    message: 'End date-time must be after start-time date',
+  @IsNotEmpty({
+    message: 'Start date is required',
   })
-  endTime: Date;
+  startDate: Date;
+
+  @IsString({ message: 'Start time must be a string' })
+  @IsNotEmpty({
+    message: 'Start time is required',
+  })
+  startTime: string;
+
+  @IsDate({ message: 'End date must be a valid date' })
+  @Type(() => Date)
+  @IsNotEmpty({
+    message: 'End date is required',
+  })
+  endDate: Date;
+
+  @IsString({ message: 'End time must be a string' })
+  @IsNotEmpty({
+    message: 'End time is required',
+  })
+  endTime: string;
 
   // @IsDate()
   // @Type(() => Date)
@@ -112,13 +132,35 @@ export class CreateEventTicketTypeDto {
   @IsNotEmpty()
   quantity: number;
 
-  @IsDate()
+  @ValidateIf((dto) => dto.visibility === 'CUSTOM_SCHEDULE')
+  @IsDate({ message: 'Start date must be a valid date' })
   @Type(() => Date)
+  @IsNotEmpty({
+    message: 'Start date is required when visibility is a custom schedule',
+  })
   startDate: Date;
 
-  @IsDate()
+  @ValidateIf((dto) => dto.visibility === 'CUSTOM_SCHEDULE')
+  @IsString({ message: 'Start time must be a string' })
+  @IsNotEmpty({
+    message: 'Start time is required when visibility is a custom schedule',
+  })
+  startTime: string;
+
+  @ValidateIf((dto) => dto.visibility === 'CUSTOM_SCHEDULE')
+  @IsDate({ message: 'End date must be a valid date' })
   @Type(() => Date)
+  @IsNotEmpty({
+    message: 'End date is required when visibility is custom schedule',
+  })
   endDate: Date;
+
+  @ValidateIf((dto) => dto.visibility === 'CUSTOM_SCHEDULE')
+  @IsString({ message: 'End time must be a string' })
+  @IsNotEmpty({
+    message: 'End time is required when visibility is custom schedule',
+  })
+  endTime: string;
 
   @Type(() => Number)
   @IsNotEmpty()
@@ -127,6 +169,27 @@ export class CreateEventTicketTypeDto {
   @IsString()
   @IsNotEmpty()
   eventId: string;
+
+  @IsString()
+  @IsEnum(TicketTypeVisibility, {
+    message:
+      'Visibility must be on of hidden, visible, custom, hidden when not on sale',
+  })
+  visibility: TicketTypeVisibility;
+
+  @ValidateIf((o) => o.maxQty != undefined) // Only validate if minQty is provided
+  @Optional()
+  @IsInt({ message: 'minQty must be a number' })
+  @Min(1, { message: 'minQty must be at least 1' })
+  @Type(() => Number)
+  minQty?: number;
+
+  @ValidateIf((o) => o.maxQty != undefined) // Only validate if maxQty is provided
+  @Optional()
+  @IsInt({ message: 'maxQty must be a number' })
+  @Min(1, { message: 'maxQty must be at least 1' })
+  @Type(() => Number)
+  maxQty?: number;
 }
 
 export class CreateEventPromoCode {
@@ -279,13 +342,31 @@ export class UpdateEventDto {
   @IsString()
   locationType?: LocationType;
 
-  @IsDate()
+  @IsDate({ message: 'Start date must be a valid date' })
   @Type(() => Date)
-  startTime?: Date;
+  @IsNotEmpty({
+    message: 'Start date is required',
+  })
+  startDate: Date;
 
-  @IsDate()
+  @IsString({ message: 'Start time must be a string' })
+  @IsNotEmpty({
+    message: 'Start time is required',
+  })
+  startTime: string;
+
+  @IsDate({ message: 'End date must be a valid date' })
   @Type(() => Date)
-  endTime?: Date;
+  @IsNotEmpty({
+    message: 'End date is required',
+  })
+  endDate: Date;
+
+  @IsString({ message: 'End time must be a string' })
+  @IsNotEmpty({
+    message: 'End time is required',
+  })
+  endTime: string;
 
   // @IsDate()
   // @Type(() => Date)
@@ -319,19 +400,60 @@ export class UpdatEventTicketTypeDto {
   @Type(() => Number)
   quantity: number;
 
+  @ValidateIf(
+    (dto: UpdatEventTicketTypeDto) => dto.visibility === 'CUSTOM_SCHEDULE',
+  )
   @IsOptional()
   @IsDate()
   @Type(() => Date)
   startDate: Date;
 
+  @ValidateIf(
+    (dto: UpdatEventTicketTypeDto) => dto.visibility === 'CUSTOM_SCHEDULE',
+  )
+  @IsString()
+  @IsNotEmpty()
+  startTime: string;
+
+  @ValidateIf(
+    (dto: UpdatEventTicketTypeDto) => dto.visibility === 'CUSTOM_SCHEDULE',
+  )
   @IsOptional()
   @IsDate()
   @Type(() => Date)
   endDate: Date;
 
+  @ValidateIf(
+    (dto: UpdatEventTicketTypeDto) => dto.visibility === 'CUSTOM_SCHEDULE',
+  )
+  @IsString()
+  @IsNotEmpty()
+  endTime: string;
+
   @IsOptional()
   @Type(() => Number)
   price: number;
+
+  @IsString()
+  @IsEnum(TicketTypeVisibility, {
+    message:
+      'Visibility must be on of hidden, visible, custom, hidden when not on sale',
+  })
+  visibility: TicketTypeVisibility;
+
+  @ValidateIf((o) => o.maxQty != undefined) // Only validate if minQty is provided
+  @Optional()
+  @IsInt({ message: 'minQty must be a number' })
+  @Min(1, { message: 'minQty must be at least 1' })
+  @Type(() => Number)
+  minQty?: number;
+
+  @ValidateIf((o) => o.maxQty != undefined) // Only validate if maxQty is provided
+  @Optional()
+  @IsInt({ message: 'maxQty must be a number' })
+  @Min(1, { message: 'maxQty must be at least 1' })
+  @Type(() => Number)
+  maxQty?: number;
 }
 
 const EventStatus = ['all', 'past', 'upcoming'] as const;
@@ -364,4 +486,10 @@ export class RemoveImageDto {
   @IsString({ message: 'Image to delete must be provided' })
   @IsNotEmpty({ message: 'Image to delete must be provided' })
   image: string;
+}
+
+export class PageViewDto {
+  @IsString()
+  @IsNotEmpty()
+  eventId: string;
 }

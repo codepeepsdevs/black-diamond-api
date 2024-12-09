@@ -14,37 +14,30 @@ import {
   UseFilters,
   Param,
 } from '@nestjs/common';
-import { AuthenticationService } from './services/auth.service.js';
-import { UsersService } from 'src/users/users.service';
-// import { AuthGuard } from '@nestjs/passport';
 import { ConfigService } from '@nestjs/config';
-import { CreateUserDto } from 'src/users/dto/create-user.dto';
-// import { excludePrisma } from 'src/helpers/exclude.helper';
-import { OAuthExceptionFilter } from 'src/exceptions/oauth.exception';
-import { CustomUnauthorizedException } from 'src/exceptions/custom-unauthorized.exception';
-import { LocalAuthenticationGuard } from './guards/localAuthentication.guard.ts.js';
-import RequestWithUser from './types/requestWithUser.interface.js';
-// import JwtAuthenticationGuard from './guards/jwt-authentication.guard.js';
-// import JwtRefreshGuard from './guards/jwt-refreshtoken.guard.js';
-// import { OauthUser } from './types/oauthUser.js';
-// import { GoogleOAuthGuard } from './guards/google-oauth-guard.js';
+import { JwtService } from '@nestjs/jwt';
 import {
-  FRONTEND_URL,
-  // FRONTEND_URL,
   JWT_ACCESS_TOKEN_EXPIRATION_TIME,
   JWT_ACCESS_TOKEN_SECRET,
-} from '../constants.js';
-import { JwtService } from '@nestjs/jwt';
-import { EmailsService } from '../emails/emails.service.js';
+  FRONTEND_URL,
+} from 'src/constants';
+import { EmailsService } from 'src/emails/emails.service';
+import { CustomUnauthorizedException } from 'src/exceptions/custom-unauthorized.exception';
+import { OAuthExceptionFilter } from 'src/exceptions/oauth.exception';
+import { PrismaService } from 'src/prisma/prisma.service';
+import { CreateUserDto } from 'src/users/dto/create-user.dto';
+import { UsersService } from 'src/users/users.service';
 import {
   CompleteSignupDto,
+  VerifyEmailBody,
   ForgotPasswordDto,
   ResetPasswordDto,
-  VerifyEmailBody,
-} from './dto/auth.dto.js';
-import { TokenPayload } from './types/tokenPayload.interface.js';
-import { PrismaService } from 'src/prisma.service';
-import { GoogleAuthGuard } from './guards/google-oauth-guard.js';
+} from './dto/auth.dto';
+import { GoogleAuthGuard } from './guards/google-oauth-guard';
+import { LocalAuthenticationGuard } from './guards/localAuthentication.guard.ts';
+import { AuthenticationService } from './services/auth.service';
+import RequestWithUser from './types/requestWithUser.interface';
+import { TokenPayload } from './types/tokenPayload.interface';
 
 @UseInterceptors(ClassSerializerInterceptor)
 @Controller('auth')

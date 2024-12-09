@@ -16,7 +16,6 @@ import {
   JWT_ACCESS_TOKEN_SECRET,
 } from 'src/constants';
 import { UsersService } from 'src/users/users.service';
-import { PrismaService } from 'src/prisma.service';
 import { EmailsService } from 'src/emails/emails.service';
 
 @Module({
@@ -38,7 +37,6 @@ import { EmailsService } from 'src/emails/emails.service';
     }),
   ],
   providers: [
-    PrismaService,
     UsersService,
     AuthenticationService,
     EmailsService,

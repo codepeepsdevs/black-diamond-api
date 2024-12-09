@@ -43,6 +43,13 @@ enum AuthMethod {
   EMAIL
 }
 
+enum TicketTypeVisibility {
+  VISIBLE
+  HIDDEN
+  HIDDEN_WHEN_NOT_ON_SALE
+  CUSTOM_SCHEDULE
+}
+
 // enum EventStatus {
 //   UPCOMING
 //   PAST
@@ -201,12 +208,16 @@ model Event {
 }
 
 model TicketType {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  id        String    @id @default(auto()) @map("_id") @db.ObjectId
   name      String
   quantity  Int
-  startDate DateTime
-  endDate   DateTime
+  startDate DateTime?
+  endDate   DateTime?
   price     Float // A ticket price of zero means a free ticket type..
+
+  minQty     Int?                 @default(1)
+  maxQty     Int?
+  visibility TicketTypeVisibility @default(VISIBLE)
 
   eventId String @db.ObjectId
   event   Event  @relation(fields: [eventId], references: [id])
@@ -342,6 +353,14 @@ model Promoter {
   description     String?
   note            String?
 
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model PageView {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  eventId   String   @unique @db.ObjectId
+  views     Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
