@@ -242,7 +242,14 @@ export class EventsController {
   @UseGuards(JwtAuthenticationGuard, RolesGuard)
   @Roles('admin')
   @Delete('delete-event/:eventId')
-  async deleteEvent(@Param('eventId') ticketId: string) {
-    return this.eventsService.deleteEvent(ticketId);
+  async deleteEvent(@Param('eventId') eventId: string) {
+    return this.eventsService.deleteEvent(eventId);
+  }
+
+  @UseGuards(JwtAuthenticationGuard, RolesGuard)
+  @Roles('admin')
+  @Delete('ticket-type/:ticketTypeId')
+  async deleteTicketType(@Param('ticketTypeId') ticketTypeId: string) {
+    return this.eventsService.deleteTicketType(ticketTypeId);
   }
 }

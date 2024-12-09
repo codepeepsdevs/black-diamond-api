@@ -42,14 +42,6 @@ export class EventsService {
     const utcStartTime = combineDateAndTime(startDate, startTime);
     const utcEndTime = combineDateAndTime(endDate, endTime);
 
-    console.table({
-      isoEndTime: utcEndTime.toISOString(),
-      isoStartTime: utcStartTime.toISOString(),
-      endTimestamp: utcEndTime.getTime(),
-      startTimestamp: utcStartTime.getTime(),
-      greater: utcEndTime.getTime() > utcEndTime.getTime(),
-    });
-
     if (utcStartTime.getTime() > utcEndTime.getTime()) {
       throw new InternalServerErrorException(
         'End date must be after start date',
@@ -97,7 +89,10 @@ export class EventsService {
         ? combineDateAndTime(endDate, endTime)
         : null;
 
-    if (utcEndDate.getTime() < utcStartDate.getTime()) {
+    if (
+      dto.visibility === 'CUSTOM_SCHEDULE' &&
+      utcEndDate.getTime() < utcStartDate.getTime()
+    ) {
       throw new InternalServerErrorException(
         'Start time must be after than end time',
       );
@@ -658,7 +653,10 @@ export class EventsService {
         ? combineDateAndTime(endDate, endTime)
         : null;
 
-    if (utcEndDate.getTime() < utcStartDate.getTime()) {
+    if (
+      dto.visibility === 'CUSTOM_SCHEDULE' &&
+      utcEndDate.getTime() < utcStartDate.getTime()
+    ) {
       throw new InternalServerErrorException(
         'Start time must be lesser than end time',
       );
@@ -855,13 +853,210 @@ export class EventsService {
     }
   }
 
-  async deleteEvent(ticketId: Event['id']) {
-    const event = await this.prisma.event.delete({
+  async deleteEvent(eventId: Event['id']) {
+    const eventDetails = await this.prisma.event.findFirst({
       where: {
-        id: ticketId,
+        id: eventId,
+      },
+      include: {
+        addons: {
+          select: {
+            id: true,
+            addonOrder: {
+              select: {
+                id: true,
+              },
+            },
+          },
+        },
+        order: {
+          select: {
+            id: true,
+          },
+        },
+        ticketTypes: {
+          select: {
+            id: true,
+            promoCodeIds: true,
+            tickets: {
+              select: {
+                id: true,
+              },
+            },
+          },
+        },
       },
     });
 
-    return event;
+    if (!eventDetails) {
+      throw new NotFoundException('Event to delete not found');
+    }
+
+    const allPromocodes = eventDetails.ticketTypes.reduce(
+      (accValue: string[], ticketType) => {
+        return accValue.concat(ticketType.promoCodeIds);
+      },
+      [],
+    );
+    const allTickets = eventDetails.ticketTypes.reduce(
+      (accValue: string[], ticketType) => {
+        return accValue.concat(ticketType.tickets.map((ticket) => ticket.id));
+      },
+      [],
+    );
+    const allTicketTypes = eventDetails.ticketTypes.map(
+      (ticketType) => ticketType.id,
+    );
+    const allAddonOrders = eventDetails.addons.reduce(
+      (accValue: string[], addon) => {
+        return accValue.concat(addon.addonOrder.map((ticket) => ticket.id));
+      },
+      [],
+    );
+    const allAddons = eventDetails.addons.map((addon) => addon.id);
+    const allOrders = eventDetails.order.map((order) => order.id);
+
+    // DELETE QUERIES
+    const deletePromocodes = this.prisma.promoCode.deleteMany({
+      where: {
+        id: {
+          in: allPromocodes,
+        },
+      },
+    });
+    const deleteTickets = this.prisma.ticket.deleteMany({
+      where: {
+        id: {
+          in: allTickets,
+        },
+      },
+    });
+    const deleteTicketTypes = this.prisma.ticketType.deleteMany({
+      where: {
+        id: {
+          in: allTicketTypes,
+        },
+      },
+    });
+    const deleteAddonOrders = this.prisma.addonOrder.deleteMany({
+      where: {
+        id: {
+          in: allAddonOrders,
+        },
+      },
+    });
+    const deleteAddons = this.prisma.eventAddons.deleteMany({
+      where: {
+        id: {
+          in: allAddons,
+        },
+      },
+    });
+    const deleteOrders = this.prisma.eventAddons.deleteMany({
+      where: {
+        id: {
+          in: allOrders,
+        },
+      },
+    });
+    const deletePageViews = this.prisma.pageView.deleteMany({
+      where: {
+        eventId: eventDetails.id,
+      },
+    });
+
+    const deleteEvent = this.prisma.event.delete({
+      where: {
+        id: eventDetails.id,
+      },
+    });
+    // TODO: Delete images from cloudinary
+    // END DELETE QUERIES
+
+    try {
+      await this.prisma.$transaction([
+        deletePromocodes,
+        deleteTickets,
+        deleteTicketTypes,
+        deleteAddonOrders,
+        deleteAddons,
+        deleteOrders,
+        deletePageViews,
+        deleteEvent,
+      ]);
+
+      return {
+        message: 'Event deleted successfully',
+        eventId: eventId,
+      };
+    } catch (e) {
+      console.log(e);
+      throw new InternalServerErrorException('Error deleting event');
+    }
+  }
+
+  async deleteTicketType(ticketTypeId: string) {
+    const ticketType = await this.prisma.ticketType.findFirst({
+      where: {
+        id: ticketTypeId,
+      },
+      include: {
+        tickets: true,
+        promoCodes: true,
+      },
+    });
+
+    if (!ticketType) {
+      throw new NotFoundException('Ticket type not found');
+    }
+
+    const deletePromocodes = ticketType.promoCodeIds.map(
+      (promocodeId, index) => {
+        const ticketTypeIds = ticketType.promoCodes[index].ticketTypeIds.filter(
+          (_ticketTypeId) => _ticketTypeId !== ticketTypeId,
+        );
+        return this.prisma.promoCode.updateMany({
+          where: {
+            id: promocodeId,
+          },
+          data: {
+            ticketTypeIds: ticketTypeIds,
+          },
+        });
+      },
+    );
+
+    const deleteTickets = this.prisma.ticket.deleteMany({
+      where: {
+        ticketTypeId: ticketTypeId,
+      },
+    });
+
+    const deleteTicketType = this.prisma.ticketType.delete({
+      where: {
+        id: ticketTypeId,
+      },
+    });
+
+    try {
+      // Start a transaction to ensure atomic operations
+      await this.prisma.$transaction([
+        // Update PromoCodes to remove the deleted TicketType ID
+        ...deletePromocodes,
+        // Delete Tickets of tickettype
+        deleteTickets,
+        // Delete the TicketType
+        deleteTicketType,
+      ]);
+      console.log('TicketType and related records deleted successfully');
+
+      return {
+        message: 'Ticket type successfully deleted',
+        ticketTypeId: ticketTypeId,
+        eventId: ticketType.eventId,
+      };
+    } catch (error) {
+      console.error('Error deleting TicketType:', error);
+    }
   }
 }
