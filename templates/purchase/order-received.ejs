@@ -95,6 +95,7 @@
             <% } else { %>
               <p>No tickets!</p>
             <% } %>
+            <!-- Discount -->
             <div
               style="
                 display: flex;
@@ -105,9 +106,40 @@
                 width: 100%;
               "
             >
-              <p>Total + charges</p>
+              <p>Discount</p>
+              <p style="padding-left: 12px;">-$<%= totalDiscountInDollars %></p>
+            </div>
+            <!-- End Discount -->
+            <!-- Charges -->
+            <div
+              style="
+                display: flex;
+                justify-content: space-between;
+                column-gap: 40px;
+                color: white;
+                font-weight: 700;
+                width: 100%;
+              "
+            >
+              <p>Charges</p>
+              <p style="padding-left: 12px;">$<%= totalChargesInDollars %></p>
+            </div>
+            <!-- End Charges -->
+            <!-- Total -->
+            <div
+              style="
+                display: flex;
+                justify-content: space-between;
+                column-gap: 40px;
+                color: white;
+                font-weight: 700;
+                width: 100%;
+              "
+            >
+              <p>Total</p>
               <p style="padding-left: 12px;">$<%= amountToPay %></p>
             </div>
+            <!-- End Total -->
             <p>Contact us for any questions related to this purchase.</p>
             <p>
               This order is subject to Black Diamond Entertainment Terms of

@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET } from 'src/constants';
 import { EventsService } from 'src/events/events.service';
 import { CreateOrderDto } from 'src/orders/dto/orders.dto';
+import { calcCostAndCharges } from 'src/utils/helpers';
 import Stripe from 'stripe';
 
 @Injectable()
@@ -83,6 +84,8 @@ export class StripeService {
 
     const ticketLineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [];
     const orderLineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [];
+    let totalDiscountInDollars = 0;
+    let totalChargesInDollars = 0;
 
     try {
       const event = await this.eventService.getEvent(order.eventId);
@@ -126,9 +129,17 @@ export class StripeService {
             discountInDollars = ticketType.price * ticketOrder.quantity;
           }
         }
-        const unitAmountInCents = Math.ceil(
-          (ticketType.price - discountInDollars) * 100 * 1.029 + 30,
-        ); // Include fees
+        // const unitAmountInCents = Math.ceil(
+        //   (ticketType.price - discountInDollars) * 100 * 1.029 + 30,
+        // ); // Include fees
+        const { chargesInDollars, unitAmountInCents } = calcCostAndCharges(
+          ticketType.price,
+          discountInDollars,
+        );
+
+        // Accumulate total charges and total discount
+        totalChargesInDollars += chargesInDollars;
+        totalDiscountInDollars += discountInDollars;
         console.log('---unit amount in cents---', unitAmountInCents);
 
         ticketLineItems.push({
@@ -201,7 +212,12 @@ export class StripeService {
       },
     });
 
-    return { session, allLineItems };
+    return {
+      session,
+      allLineItems,
+      totalChargesInDollars,
+      totalDiscountInDollars,
+    };
   }
 
   async createCustomer(createCustomerData: CreateCustomer): Promise<string> {

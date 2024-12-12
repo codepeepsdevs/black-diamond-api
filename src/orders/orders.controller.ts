@@ -79,15 +79,24 @@ export class OrdersController {
     const cancelUrl =
       body.cancelUrl ?? this.configService.get<string>(CANCEL_URL);
 
-    const { session, allLineItems } =
-      await this.stripeService.createCheckoutSession(
-        body,
-        successUrl,
-        cancelUrl,
-        order.id,
-        promocode,
-      );
-    await this.ordersService.setSessionId(order.id, session.id);
+    const {
+      session,
+      allLineItems,
+      totalChargesInDollars,
+      totalDiscountInDollars,
+    } = await this.stripeService.createCheckoutSession(
+      body,
+      successUrl,
+      cancelUrl,
+      order.id,
+      promocode,
+    );
+    await this.ordersService.setSessionIdAndCharges({
+      orderId: order.id,
+      sessionId: session.id,
+      totalChargesInDollars,
+      totalDiscountInDollars,
+    });
 
     // After successful order placement, send order received email
     const ticketLink = `${this.configService.get(FRONTEND_URL)}/tickets/`; // just take them to tickets page.
@@ -139,6 +148,8 @@ export class OrdersController {
         },
       ),
       ticketGroups: Object.values(ticketGroup),
+      totalChargesInDollars,
+      totalDiscountInDollars,
     });
     res
       .status(200)

@@ -85,3 +85,21 @@ export const isPromocodeActive = (promocode: PromoCode, orderCount: number) => {
 
   return isActive;
 };
+
+export const calcCostAndCharges = (
+  priceInDollars: number,
+  discountInDollars: number,
+) => {
+  const chargesInDollars =
+    Number(
+      (
+        Math.ceil((priceInDollars - discountInDollars) * 100 * 0.029 + 30) / 100
+      ).toFixed(2),
+    ) / 100;
+
+  const unitAmountInCents = Math.ceil(
+    (priceInDollars - discountInDollars) * 100 * 1.029 + 30,
+  );
+
+  return { chargesInDollars, unitAmountInCents };
+};
