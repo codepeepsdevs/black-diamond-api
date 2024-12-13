@@ -90,16 +90,36 @@ export const calcCostAndCharges = (
   priceInDollars: number,
   discountInDollars: number,
 ) => {
-  const chargesInDollars =
-    Number(
-      (
-        Math.ceil((priceInDollars - discountInDollars) * 100 * 0.029 + 30) / 100
-      ).toFixed(2),
-    ) / 100;
+  const chargesInDollars = Number(
+    ((priceInDollars - discountInDollars) * 0.029 + 0.3).toFixed(2),
+  );
 
   const unitAmountInCents = Math.ceil(
-    (priceInDollars - discountInDollars) * 100 * 1.029 + 30,
+    (priceInDollars - discountInDollars + chargesInDollars) * 100,
   );
+
+  console.table({
+    priceInDollars,
+    discountInDollars,
+    chargesInDollars,
+    unitAmountInCents,
+  });
 
   return { chargesInDollars, unitAmountInCents };
 };
+
+function createFuzzyRegex(filter: string) {
+  // Escape special regex characters in the input
+  const escapedFilter = filter.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+  // Convert the string into a regex pattern that allows other characters in between
+  const regexPattern = escapedFilter.split('').join('.*');
+
+  // Create a case-insensitive regex using the pattern
+  return new RegExp(regexPattern, 'i');
+}
+
+export function fuzzyMatch(filterString: string, text: string) {
+  const regex = createFuzzyRegex(filterString);
+  return regex.test(text);
+}

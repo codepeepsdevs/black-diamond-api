@@ -95,21 +95,24 @@
             <% } else { %>
               <p>No tickets!</p>
             <% } %>
-            <!-- Discount -->
+             <!-- Discount -->
+          <% if(order.totalDiscount) { %>
             <div
-              style="
-                display: flex;
-                justify-content: space-between;
-                column-gap: 40px;
-                color: white;
-                font-weight: 700;
-                width: 100%;
-              "
-            >
-              <p>Discount</p>
-              <p style="padding-left: 12px;">-$<%= totalDiscountInDollars %></p>
-            </div>
-            <!-- End Discount -->
+            style="
+              display: flex;
+              justify-content: space-between;
+              column-gap: 40px;
+              color: white;
+              width: 100%;
+            "
+          >
+            <p>Discount</p>
+            <p style="padding-left: 12px;">-$<%= order.totalDiscount %></p>
+          </div>
+          <% } else { %>
+            <p></p>
+          <% } %>
+          <!-- End Discount -->
             <!-- Charges -->
             <div
               style="

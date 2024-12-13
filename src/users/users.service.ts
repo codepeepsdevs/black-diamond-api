@@ -17,7 +17,7 @@ import { AuthMethod, User } from '@prisma/client';
 import { PaginationQueryDto } from 'src/shared/dto/pagination-query.dto';
 import { GetUsersStatsDto } from './dto/users.dto';
 import * as dateFns from 'date-fns';
-import { convertDateToNewYorkTimeInUTC } from 'src/utils/helpers';
+import { convertDateToNewYorkTimeInUTC, fuzzyMatch } from 'src/utils/helpers';
 import * as XLSX from 'xlsx';
 
 @Injectable()
@@ -94,7 +94,7 @@ export class UsersService {
   }
 
   async getUsers(paginationQuery: PaginationQueryDto) {
-    const { page: _page, limit: _limit } = paginationQuery;
+    const { page: _page, limit: _limit, search } = paginationQuery;
     const page = Number(_page);
     const limit = Number(_limit);
     const skip =
@@ -103,38 +103,65 @@ export class UsersService {
         : undefined;
     const take = limit ? Number(limit) : undefined;
 
-    const [users, usersCount] = await Promise.all([
-      this.prisma.user.findMany({
-        include: {
-          address: true,
-          billingInfo: true,
-          order: {
-            where: {
-              paymentStatus: 'SUCCESSFUL',
-            },
+    // const whereObject: Prisma.UserWhereInput = {
+    //   OR: [
+    //     {
+    //       firstname: {
+    //         contains: search,
+    //         mode: 'insensitive',
+    //       },
+    //       lastname: {
+    //         contains: search,
+    //         mode: 'insensitive',
+    //       },
+    //     },
+    //   ],
+    // };
+    const users = await this.prisma.user.findMany({
+      include: {
+        address: true,
+        billingInfo: true,
+        order: {
+          where: {
+            paymentStatus: 'SUCCESSFUL',
           },
         },
-        orderBy: {
-          createdAt: 'desc',
-        },
-        skip,
-        take,
-      }),
-      this.prisma.user.count(),
-    ]);
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      skip,
+      take,
+    });
     // if (!user) {
     //   throw new NotFoundException('User not found');
     // }
-    const _users = users.map((user) => {
+    const _users: (Omit<
+      (typeof users)[number],
+      | 'authMethod'
+      | 'confirmToken'
+      | 'refreshToken'
+      | 'resetToken'
+      | 'resetTokenExpiry'
+      | 'password'
+    > & {
+      amountSpent: number;
+    })[] = [];
+
+    users.forEach((user) => {
+      if (search) {
+        const fullName = `${user.firstname} ${user.lastname}`;
+        if (!fuzzyMatch(search, fullName)) {
+          return;
+        }
+      }
       const amountSpent = user.order.reduce((accValue, currOrder) => {
         return (accValue += currOrder.amountPaid);
       }, 0);
 
-      return excludePrisma(
+      const _user = excludePrisma(
         {
           ...user,
-          billingInfo: user.billingInfo,
-          address: user.address,
           amountSpent,
         },
         [
@@ -146,9 +173,11 @@ export class UsersService {
           'password',
         ],
       );
+
+      _users.push(_user);
     });
 
-    return { users: _users, usersCount };
+    return { users: _users, usersCount: _users.length };
   }
 
   async exportUsersToExcel() {

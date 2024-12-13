@@ -133,7 +133,7 @@ export class StripeService {
         //   (ticketType.price - discountInDollars) * 100 * 1.029 + 30,
         // ); // Include fees
         const { chargesInDollars, unitAmountInCents } = calcCostAndCharges(
-          ticketType.price,
+          ticketType.price * ticketType.quantity,
           discountInDollars,
         );
 
