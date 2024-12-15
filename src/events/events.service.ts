@@ -113,12 +113,15 @@ export class EventsService {
     }
   }
 
-  async createEventPromoCode({
-    absoluteDiscountAmount,
-    percentageDiscountAmount,
-    applyToTicketIds,
-    ...dto
-  }: CreateEventPromoCode) {
+  async createEventPromoCode(
+    eventId: string,
+    {
+      absoluteDiscountAmount,
+      percentageDiscountAmount,
+      applyToTicketIds,
+      ...dto
+    }: CreateEventPromoCode,
+  ) {
     try {
       const utcStartDate = combineDateAndTime(dto.startDate, dto.startTime);
       const utcEndDate = combineDateAndTime(dto.endDate, dto.endTime);
@@ -126,6 +129,7 @@ export class EventsService {
         data: {
           absoluteDiscountAmount: absoluteDiscountAmount || 0,
           key: dto.key,
+          eventId: eventId,
           limit: dto.limit,
           name: dto.name,
           percentageDiscountAmount: percentageDiscountAmount || 0,
@@ -227,7 +231,11 @@ export class EventsService {
         ticketTypes: true,
         _count: {
           select: {
-            order: true,
+            order: {
+              where: {
+                paymentStatus: 'SUCCESSFUL',
+              },
+            },
           },
         },
       },
@@ -251,7 +259,11 @@ export class EventsService {
         ticketTypes: true,
         _count: {
           select: {
-            order: true,
+            order: {
+              where: {
+                paymentStatus: 'SUCCESSFUL',
+              },
+            },
           },
         },
       },
@@ -491,7 +503,11 @@ export class EventsService {
           ticketTypes: true,
           _count: {
             select: {
-              order: true,
+              order: {
+                where: {
+                  paymentStatus: 'SUCCESSFUL',
+                },
+              },
             },
           },
         },
@@ -928,12 +944,12 @@ export class EventsService {
       throw new NotFoundException('Event to delete not found');
     }
 
-    const allPromocodes = eventDetails.ticketTypes.reduce(
-      (accValue: string[], ticketType) => {
-        return accValue.concat(ticketType.promoCodeIds);
-      },
-      [],
-    );
+    // const allPromocodes = eventDetails.ticketTypes.reduce(
+    //   (accValue: string[], ticketType) => {
+    //     return accValue.concat(ticketType.promoCodeIds);
+    //   },
+    //   [],
+    // );
     const allTickets = eventDetails.ticketTypes.reduce(
       (accValue: string[], ticketType) => {
         return accValue.concat(ticketType.tickets.map((ticket) => ticket.id));
@@ -955,9 +971,7 @@ export class EventsService {
     // DELETE QUERIES
     const deletePromocodes = this.prisma.promoCode.deleteMany({
       where: {
-        id: {
-          in: allPromocodes,
-        },
+        eventId: eventId,
       },
     });
     const deleteTickets = this.prisma.ticket.deleteMany({

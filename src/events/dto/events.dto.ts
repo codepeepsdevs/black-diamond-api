@@ -263,9 +263,9 @@ export class GetPromocodeDto {
   @IsNotEmpty()
   key: string;
 
-  // @IsString()
-  // @IsNotEmpty()
-  // eventId: string;
+  @IsString()
+  @IsNotEmpty()
+  eventId: string;
 }
 
 export class CreateEventAddonDto {

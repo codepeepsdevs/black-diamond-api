@@ -73,9 +73,9 @@ export class OrdersController {
       body,
       token,
     );
-    const successUrl =
-      body.successUrl ??
-      `${this.configService.get<string>(SUCCESS_URL)}/${order.id}`;
+    const successUrl = body.successUrl
+      ? `${body.successUrl}/${order.id}/fill-details`
+      : `${this.configService.get<string>(SUCCESS_URL)}/${order.id}/fill-details`;
     const cancelUrl =
       body.cancelUrl ?? this.configService.get<string>(CANCEL_URL);
 
@@ -133,7 +133,7 @@ export class OrdersController {
     //   totalAmount += addonsOrder.addon.price;
     // });
     await this.emailService.sendOrderReceived(order.email, {
-      amountToPay: totalAmount / 100, // total amount is in cents, divide by 100 to convert to dollar
+      amountToPay: totalAmount / 100 + totalChargesInDollars, // total amount is in cents, divide by 100 to convert to dollar
       order,
       ticketLink: ticketLink,
       eventDate: getTimeZoneDateRange(

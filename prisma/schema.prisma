@@ -241,6 +241,8 @@ model PromoCode {
   promoStartDate           DateTime
   promoEndDate             DateTime
 
+  eventId String @db.ObjectId
+
   ticketTypeIds String[]     @db.ObjectId
   ticketTypes   TicketType[] @relation(fields: [ticketTypeIds], references: [id])
 

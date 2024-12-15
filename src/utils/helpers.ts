@@ -86,26 +86,26 @@ export const isPromocodeActive = (promocode: PromoCode, orderCount: number) => {
   return isActive;
 };
 
-export const calcCostAndCharges = (
-  priceInDollars: number,
-  discountInDollars: number,
+export const getDiscountedPrice = (
+  unitPriceInDollars: number,
+  unitDiscountInDollars: number,
 ) => {
-  const chargesInDollars = Number(
-    ((priceInDollars - discountInDollars) * 0.029 + 0.3).toFixed(2),
-  );
+  // const unitChargesInDollars = Number(
+  //   ((unitPriceInDollars - unitDiscountInDollars) * 0.029).toFixed(2),
+  // );
 
   const unitAmountInCents = Math.ceil(
-    (priceInDollars - discountInDollars + chargesInDollars) * 100,
+    (unitPriceInDollars - unitDiscountInDollars) * 100,
   );
 
   console.table({
-    priceInDollars,
-    discountInDollars,
-    chargesInDollars,
+    unitPriceInDollars: unitPriceInDollars,
+    unitDiscountInDollars: unitDiscountInDollars,
+    // unitChargesInDollars: unitChargesInDollars,
     unitAmountInCents,
   });
 
-  return { chargesInDollars, unitAmountInCents };
+  return { unitAmountInCents };
 };
 
 function createFuzzyRegex(filter: string) {

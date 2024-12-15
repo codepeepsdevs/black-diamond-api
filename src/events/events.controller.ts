@@ -82,9 +82,12 @@ export class EventsController {
 
   @UseGuards(JwtAuthenticationGuard)
   @Roles('admin')
-  @Post('create-event-promocode')
-  async createEventPromoCode(@Body() dto: CreateEventPromoCode) {
-    return this.eventsService.createEventPromoCode(dto);
+  @Post('create-event-promocode/:eventId')
+  async createEventPromoCode(
+    @Param('eventId') eventId: string,
+    @Body() dto: CreateEventPromoCode,
+  ) {
+    return this.eventsService.createEventPromoCode(eventId, dto);
   }
 
   @UseGuards(JwtAuthenticationGuard, RolesGuard)
