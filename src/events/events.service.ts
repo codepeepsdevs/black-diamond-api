@@ -711,6 +711,22 @@ export class EventsService {
     const utcStartDate = combineDateAndTime(startDate, startTime);
     const utcEndDate = combineDateAndTime(endDate, endTime);
 
+    const promocode = await this.prisma.promoCode.findFirst({
+      where: {
+        id: promocodeId,
+      },
+    });
+
+    if (!promocode) {
+      throw new NotFoundException('Item to update not found');
+    }
+
+    const idsToRemove = promocode.ticketTypeIds
+      .filter((ticketTypeId) => !applyToTicketIds.includes(ticketTypeId))
+      .map((ticketTypeId) => ({
+        id: ticketTypeId,
+      }));
+
     const updatedPromocode = await this.prisma.promoCode.update({
       where: {
         id: promocodeId,
@@ -720,6 +736,7 @@ export class EventsService {
         promoStartDate: utcStartDate,
         promoEndDate: utcEndDate,
         ticketTypes: {
+          disconnect: idsToRemove,
           connect: applyToTicketIds.map((ticketTypeId) => ({
             id: ticketTypeId,
           })),
@@ -1140,18 +1157,18 @@ export class EventsService {
         },
       });
     });
-    const removeFromTicketType = promocode.ticketTypes.map((ticketType) => {
-      return this.prisma.ticketType.update({
-        where: {
-          id: ticketType.id,
+    // const removeFromTicketType = promocode.ticketTypes.map((ticketType) => {
+    const removeFromTicketType = this.prisma.promoCode.update({
+      where: {
+        id: promocodeId,
+      },
+      data: {
+        ticketTypes: {
+          set: [],
         },
-        data: {
-          promoCodeIds: ticketType.promoCodeIds.filter((_promocodeId) => {
-            promocodeId !== _promocodeId;
-          }),
-        },
-      });
+      },
     });
+    // });
     const _deletePromocode = this.prisma.promoCode.delete({
       where: {
         id: promocodeId,
@@ -1164,7 +1181,7 @@ export class EventsService {
         // Update orders to remove the promocode
         ...removeFromOrder,
         // update the ticket types the promocode was applied to and remove it from it's array of promocodes
-        ...removeFromTicketType,
+        removeFromTicketType,
         // Delete the TicketType
         _deletePromocode,
       ]);
