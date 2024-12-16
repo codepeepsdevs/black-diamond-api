@@ -85,3 +85,41 @@ export const isPromocodeActive = (promocode: PromoCode, orderCount: number) => {
 
   return isActive;
 };
+
+export const getDiscountedPrice = (
+  unitPriceInDollars: number,
+  unitDiscountInDollars: number,
+) => {
+  // const unitChargesInDollars = Number(
+  //   ((unitPriceInDollars - unitDiscountInDollars) * 0.029).toFixed(2),
+  // );
+
+  const unitAmountInCents = Math.ceil(
+    (unitPriceInDollars - unitDiscountInDollars) * 100,
+  );
+
+  console.table({
+    unitPriceInDollars: unitPriceInDollars,
+    unitDiscountInDollars: unitDiscountInDollars,
+    // unitChargesInDollars: unitChargesInDollars,
+    unitAmountInCents,
+  });
+
+  return { unitAmountInCents };
+};
+
+function createFuzzyRegex(filter: string) {
+  // Escape special regex characters in the input
+  const escapedFilter = filter.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+  // Convert the string into a regex pattern that allows other characters in between
+  const regexPattern = escapedFilter.split('').join('.*');
+
+  // Create a case-insensitive regex using the pattern
+  return new RegExp(regexPattern, 'i');
+}
+
+export function fuzzyMatch(filterString: string, text: string) {
+  const regex = createFuzzyRegex(filterString);
+  return regex.test(text);
+}

@@ -219,8 +219,8 @@ model TicketType {
   maxQty     Int?
   visibility TicketTypeVisibility @default(VISIBLE)
 
-  eventId String @db.ObjectId
-  event   Event  @relation(fields: [eventId], references: [id])
+  eventId String? @db.ObjectId
+  event   Event?  @relation(fields: [eventId], references: [id])
 
   promoCodeIds String[]    @db.ObjectId
   promoCodes   PromoCode[] @relation(fields: [promoCodeIds], references: [id])
@@ -241,6 +241,8 @@ model PromoCode {
   promoStartDate           DateTime
   promoEndDate             DateTime
 
+  eventId String @db.ObjectId
+
   ticketTypeIds String[]     @db.ObjectId
   ticketTypes   TicketType[] @relation(fields: [ticketTypeIds], references: [id])
 
@@ -259,6 +261,8 @@ model Order {
   paymentStatus PaymentStatus @default(PENDING)
   paymentId     String?
   amountPaid    Float?        @default(0)
+  totalDiscount Float?        @default(0)
+  totalCharges  Float?        @default(0)
   sessionId     String?
 
   // Contact details

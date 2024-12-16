@@ -227,18 +227,35 @@ export class CreateEventPromoCode {
   @IsOptional()
   percentageDiscountAmount?: number;
 
-  @IsDate()
-  @Type(() => Date)
-  @IsNotEmpty()
-  promoStartDate: Date;
-
-  @IsDate()
-  @Type(() => Date)
-  promoEndDate: Date;
-
   @IsArray()
   @IsString({ each: true })
   applyToTicketIds: string[];
+
+  @IsDate({ message: 'Start date must be a valid date' })
+  @Type(() => Date)
+  @IsNotEmpty({
+    message: 'Start date is required',
+  })
+  startDate: Date;
+
+  @IsString({ message: 'Start time must be a string' })
+  @IsNotEmpty({
+    message: 'Start time is required',
+  })
+  startTime: string;
+
+  @IsDate({ message: 'End date must be a valid date' })
+  @Type(() => Date)
+  @IsNotEmpty({
+    message: 'End date is required',
+  })
+  endDate: Date;
+
+  @IsString({ message: 'End time must be a string' })
+  @IsNotEmpty({
+    message: 'End time is required',
+  })
+  endTime: string;
 }
 
 export class GetPromocodeDto {
@@ -246,9 +263,9 @@ export class GetPromocodeDto {
   @IsNotEmpty()
   key: string;
 
-  // @IsString()
-  // @IsNotEmpty()
-  // eventId: string;
+  @IsString()
+  @IsNotEmpty()
+  eventId: string;
 }
 
 export class CreateEventAddonDto {
@@ -493,3 +510,5 @@ export class PageViewDto {
   @IsNotEmpty()
   eventId: string;
 }
+
+export class UpdatePromocodeDto extends CreateEventPromoCode {}

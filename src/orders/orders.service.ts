@@ -745,11 +745,23 @@ export class OrdersService {
     }
   }
 
-  async setSessionId(orderId: string, sessionId: string) {
+  async setSessionIdAndCharges({
+    orderId,
+    sessionId,
+    totalChargesInDollars,
+    totalDiscountInDollars,
+  }: {
+    orderId: string;
+    sessionId: string;
+    totalDiscountInDollars: number;
+    totalChargesInDollars: number;
+  }) {
     return await this.prisma.order.update({
       where: { id: orderId },
       data: {
         sessionId: sessionId,
+        totalDiscount: totalDiscountInDollars,
+        totalCharges: totalChargesInDollars,
       },
     });
   }

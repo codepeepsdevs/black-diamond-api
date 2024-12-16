@@ -73,21 +73,30 @@ export class OrdersController {
       body,
       token,
     );
-    const successUrl =
-      body.successUrl ??
-      `${this.configService.get<string>(SUCCESS_URL)}/${order.id}`;
+    const successUrl = body.successUrl
+      ? `${body.successUrl}/${order.id}/fill-details`
+      : `${this.configService.get<string>(SUCCESS_URL)}/${order.id}/fill-details`;
     const cancelUrl =
       body.cancelUrl ?? this.configService.get<string>(CANCEL_URL);
 
-    const { session, allLineItems } =
-      await this.stripeService.createCheckoutSession(
-        body,
-        successUrl,
-        cancelUrl,
-        order.id,
-        promocode,
-      );
-    await this.ordersService.setSessionId(order.id, session.id);
+    const {
+      session,
+      allLineItems,
+      totalChargesInDollars,
+      totalDiscountInDollars,
+    } = await this.stripeService.createCheckoutSession(
+      body,
+      successUrl,
+      cancelUrl,
+      order.id,
+      promocode,
+    );
+    await this.ordersService.setSessionIdAndCharges({
+      orderId: order.id,
+      sessionId: session.id,
+      totalChargesInDollars,
+      totalDiscountInDollars,
+    });
 
     // After successful order placement, send order received email
     const ticketLink = `${this.configService.get(FRONTEND_URL)}/tickets/`; // just take them to tickets page.
@@ -124,7 +133,7 @@ export class OrdersController {
     //   totalAmount += addonsOrder.addon.price;
     // });
     await this.emailService.sendOrderReceived(order.email, {
-      amountToPay: totalAmount / 100, // total amount is in cents, divide by 100 to convert to dollar
+      amountToPay: totalAmount / 100 + totalChargesInDollars, // total amount is in cents, divide by 100 to convert to dollar
       order,
       ticketLink: ticketLink,
       eventDate: getTimeZoneDateRange(
@@ -139,6 +148,8 @@ export class OrdersController {
         },
       ),
       ticketGroups: Object.values(ticketGroup),
+      totalChargesInDollars,
+      totalDiscountInDollars,
     });
     res
       .status(200)

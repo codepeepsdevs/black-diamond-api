@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET } from 'src/constants';
 import { EventsService } from 'src/events/events.service';
 import { CreateOrderDto } from 'src/orders/dto/orders.dto';
+import { getDiscountedPrice } from 'src/utils/helpers';
 import Stripe from 'stripe';
 
 @Injectable()
@@ -82,7 +83,9 @@ export class StripeService {
     }
 
     const ticketLineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [];
-    const orderLineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [];
+    const addonLineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [];
+    let totalDiscountInDollars = 0;
+    // let totalChargesInDollars = 0;
 
     try {
       const event = await this.eventService.getEvent(order.eventId);
@@ -107,28 +110,35 @@ export class StripeService {
           throw new InternalServerErrorException('Ticket order is invalid');
         }
 
-        let discountInDollars = 0;
+        let unitDiscountInDollars = 0;
         if (promocode && ticketType.promoCodeIds.includes(promocode.id)) {
           if (promocode.absoluteDiscountAmount) {
-            discountInDollars =
-              promocode.absoluteDiscountAmount * ticketOrder.quantity;
+            unitDiscountInDollars = promocode.absoluteDiscountAmount;
           } else if (promocode.percentageDiscountAmount) {
-            discountInDollars =
-              promocode.percentageDiscountAmount *
-              0.01 *
-              ticketType.price *
-              ticketOrder.quantity;
+            unitDiscountInDollars =
+              promocode.percentageDiscountAmount * 0.01 * ticketType.price;
           } else {
-            discountInDollars = 0;
+            unitDiscountInDollars = 0;
           }
 
-          if (discountInDollars >= ticketType.price * ticketOrder.quantity) {
-            discountInDollars = ticketType.price * ticketOrder.quantity;
+          if (
+            unitDiscountInDollars >=
+            ticketType.price * ticketOrder.quantity
+          ) {
+            unitDiscountInDollars = ticketType.price;
           }
         }
-        const unitAmountInCents = Math.ceil(
-          (ticketType.price - discountInDollars) * 100 * 1.029 + 30,
-        ); // Include fees
+        // const unitAmountInCents = Math.ceil(
+        //   (ticketType.price - discountInDollars) * 100 * 1.029 + 30,
+        // ); // Include fees
+        const { unitAmountInCents } = getDiscountedPrice(
+          ticketType.price,
+          unitDiscountInDollars,
+        );
+
+        // Accumulate total charges and total discount
+        // totalChargesInDollars += unitChargesInDollars * ticketOrder.quantity;
+        totalDiscountInDollars += unitDiscountInDollars * ticketOrder.quantity;
         console.log('---unit amount in cents---', unitAmountInCents);
 
         ticketLineItems.push({
@@ -154,7 +164,7 @@ export class StripeService {
           );
 
           if (addonOrder.quantity > 0) {
-            orderLineItems.push({
+            addonLineItems.push({
               quantity: addonOrder.quantity,
               price_data: {
                 product_data: {
@@ -180,11 +190,30 @@ export class StripeService {
       );
     }
 
-    const allLineItems = [...ticketLineItems, ...orderLineItems];
+    const allLineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [
+      ...ticketLineItems,
+      ...addonLineItems,
+    ];
+    const itemTotal = allLineItems.reduce(
+      (accValue, lineItem) =>
+        (accValue += lineItem.price_data.unit_amount * lineItem.quantity),
+      0,
+    );
+    const totalChargesInCents = Math.ceil(itemTotal * 0.029 + 30);
+    const feeLineItem = {
+      quantity: 1,
+      price_data: {
+        product_data: {
+          name: `Processing fee`,
+        },
+        currency: 'usd',
+        unit_amount: totalChargesInCents,
+      },
+    };
     const session = await this.stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       customer: customerId,
-      line_items: allLineItems,
+      line_items: [...allLineItems, feeLineItem],
       mode: 'payment',
       success_url: successUrl,
       cancel_url: cancelUrl,
@@ -201,7 +230,12 @@ export class StripeService {
       },
     });
 
-    return { session, allLineItems };
+    return {
+      session,
+      allLineItems,
+      totalChargesInDollars: totalChargesInCents / 100,
+      totalDiscountInDollars,
+    };
   }
 
   async createCustomer(createCustomerData: CreateCustomer): Promise<string> {

@@ -106,6 +106,8 @@ export class StripeController {
           'MMMM d, yyyy',
         ),
         ticketGroups: Object.values(ticketGroup),
+        totalDiscountInDollars: order.totalDiscount,
+        totalChargesInDollars: order.totalCharges,
       });
     }
 

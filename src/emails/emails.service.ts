@@ -212,6 +212,8 @@ export class EmailsService {
         quantity: number;
         price: number;
       }[];
+      totalDiscountInDollars: number;
+      totalChargesInDollars: number;
     }, // Todo change to return type of the fetch order query
   ): Promise<void> {
     console.log('sending order confirmed email to:', email);
@@ -251,6 +253,8 @@ export class EmailsService {
         quantity: number;
         price: number;
       }[];
+      totalDiscountInDollars: number;
+      totalChargesInDollars: number;
     }, // Todo change to return type of the fetch order query
   ): Promise<void> {
     console.log('sending order received email to', email);

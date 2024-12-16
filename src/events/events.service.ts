@@ -14,6 +14,7 @@ import {
   GetPromocodeDto,
   PageViewDto,
   UpdateEventDto,
+  UpdatePromocodeDto,
   UpdatEventTicketTypeDto,
 } from './dto/events.dto';
 import { Event, Prisma, TicketType } from '@prisma/client';
@@ -112,22 +113,28 @@ export class EventsService {
     }
   }
 
-  async createEventPromoCode({
-    absoluteDiscountAmount,
-    percentageDiscountAmount,
-    applyToTicketIds,
-    ...dto
-  }: CreateEventPromoCode) {
+  async createEventPromoCode(
+    eventId: string,
+    {
+      absoluteDiscountAmount,
+      percentageDiscountAmount,
+      applyToTicketIds,
+      ...dto
+    }: CreateEventPromoCode,
+  ) {
     try {
+      const utcStartDate = combineDateAndTime(dto.startDate, dto.startTime);
+      const utcEndDate = combineDateAndTime(dto.endDate, dto.endTime);
       const newPromoCode = await this.prisma.promoCode.create({
         data: {
           absoluteDiscountAmount: absoluteDiscountAmount || 0,
           key: dto.key,
+          eventId: eventId,
           limit: dto.limit,
           name: dto.name,
           percentageDiscountAmount: percentageDiscountAmount || 0,
-          promoEndDate: dto.promoEndDate,
-          promoStartDate: dto.promoStartDate,
+          promoEndDate: utcEndDate,
+          promoStartDate: utcStartDate,
           ticketTypes: {
             connect: applyToTicketIds.map((ticketTypeId) => ({
               id: ticketTypeId,
@@ -224,7 +231,11 @@ export class EventsService {
         ticketTypes: true,
         _count: {
           select: {
-            order: true,
+            order: {
+              where: {
+                paymentStatus: 'SUCCESSFUL',
+              },
+            },
           },
         },
       },
@@ -248,7 +259,11 @@ export class EventsService {
         ticketTypes: true,
         _count: {
           select: {
-            order: true,
+            order: {
+              where: {
+                paymentStatus: 'SUCCESSFUL',
+              },
+            },
           },
         },
       },
@@ -488,7 +503,11 @@ export class EventsService {
           ticketTypes: true,
           _count: {
             select: {
-              order: true,
+              order: {
+                where: {
+                  paymentStatus: 'SUCCESSFUL',
+                },
+              },
             },
           },
         },
@@ -676,6 +695,56 @@ export class EventsService {
     });
 
     return event;
+  }
+
+  async updatePromocode(
+    promocodeId: string,
+    {
+      startDate,
+      startTime,
+      endDate,
+      endTime,
+      applyToTicketIds,
+      ...dto
+    }: UpdatePromocodeDto,
+  ) {
+    const utcStartDate = combineDateAndTime(startDate, startTime);
+    const utcEndDate = combineDateAndTime(endDate, endTime);
+
+    const promocode = await this.prisma.promoCode.findFirst({
+      where: {
+        id: promocodeId,
+      },
+    });
+
+    if (!promocode) {
+      throw new NotFoundException('Item to update not found');
+    }
+
+    const idsToRemove = promocode.ticketTypeIds
+      .filter((ticketTypeId) => !applyToTicketIds.includes(ticketTypeId))
+      .map((ticketTypeId) => ({
+        id: ticketTypeId,
+      }));
+
+    const updatedPromocode = await this.prisma.promoCode.update({
+      where: {
+        id: promocodeId,
+      },
+      data: {
+        ...dto,
+        promoStartDate: utcStartDate,
+        promoEndDate: utcEndDate,
+        ticketTypes: {
+          disconnect: idsToRemove,
+          connect: applyToTicketIds.map((ticketTypeId) => ({
+            id: ticketTypeId,
+          })),
+        },
+      },
+    });
+
+    return updatedPromocode;
   }
 
   async getRevenue(eventId: string) {
@@ -892,12 +961,12 @@ export class EventsService {
       throw new NotFoundException('Event to delete not found');
     }
 
-    const allPromocodes = eventDetails.ticketTypes.reduce(
-      (accValue: string[], ticketType) => {
-        return accValue.concat(ticketType.promoCodeIds);
-      },
-      [],
-    );
+    // const allPromocodes = eventDetails.ticketTypes.reduce(
+    //   (accValue: string[], ticketType) => {
+    //     return accValue.concat(ticketType.promoCodeIds);
+    //   },
+    //   [],
+    // );
     const allTickets = eventDetails.ticketTypes.reduce(
       (accValue: string[], ticketType) => {
         return accValue.concat(ticketType.tickets.map((ticket) => ticket.id));
@@ -919,9 +988,7 @@ export class EventsService {
     // DELETE QUERIES
     const deletePromocodes = this.prisma.promoCode.deleteMany({
       where: {
-        id: {
-          in: allPromocodes,
-        },
+        eventId: eventId,
       },
     });
     const deleteTickets = this.prisma.ticket.deleteMany({
@@ -1054,6 +1121,74 @@ export class EventsService {
         message: 'Ticket type successfully deleted',
         ticketTypeId: ticketTypeId,
         eventId: ticketType.eventId,
+      };
+    } catch (error) {
+      console.error('Error deleting TicketType:', error);
+    }
+  }
+
+  async deletePromocode(promocodeId: string) {
+    const promocode = await this.prisma.promoCode.findFirst({
+      where: {
+        id: promocodeId,
+      },
+      include: {
+        order: {
+          select: {
+            id: true,
+          },
+        },
+        ticketTypes: {
+          select: {
+            id: true,
+            promoCodeIds: true,
+          },
+        },
+      },
+    });
+
+    const removeFromOrder = promocode.order.map((order) => {
+      return this.prisma.order.update({
+        where: {
+          id: order.id,
+        },
+        data: {
+          promocodeId: null,
+        },
+      });
+    });
+    // const removeFromTicketType = promocode.ticketTypes.map((ticketType) => {
+    const removeFromTicketType = this.prisma.promoCode.update({
+      where: {
+        id: promocodeId,
+      },
+      data: {
+        ticketTypes: {
+          set: [],
+        },
+      },
+    });
+    // });
+    const _deletePromocode = this.prisma.promoCode.delete({
+      where: {
+        id: promocodeId,
+      },
+    });
+
+    try {
+      // Start a transaction to ensure atomic operations
+      await this.prisma.$transaction([
+        // Update orders to remove the promocode
+        ...removeFromOrder,
+        // update the ticket types the promocode was applied to and remove it from it's array of promocodes
+        removeFromTicketType,
+        // Delete the TicketType
+        _deletePromocode,
+      ]);
+
+      return {
+        message: 'Promocode successfully deleted',
+        promocodeId: promocodeId,
       };
     } catch (error) {
       console.error('Error deleting TicketType:', error);

@@ -22,6 +22,7 @@ import {
   GetPromocodeDto,
   RemoveImageDto,
   UpdateEventDto,
+  UpdatePromocodeDto,
   UpdatEventTicketTypeDto,
 } from './dto/events.dto';
 import { RolesGuard } from 'src/auth/guards/roles.guard';
@@ -81,9 +82,12 @@ export class EventsController {
 
   @UseGuards(JwtAuthenticationGuard)
   @Roles('admin')
-  @Post('create-event-promocode')
-  async createEventPromoCode(@Body() dto: CreateEventPromoCode) {
-    return this.eventsService.createEventPromoCode(dto);
+  @Post('create-event-promocode/:eventId')
+  async createEventPromoCode(
+    @Param('eventId') eventId: string,
+    @Body() dto: CreateEventPromoCode,
+  ) {
+    return this.eventsService.createEventPromoCode(eventId, dto);
   }
 
   @UseGuards(JwtAuthenticationGuard, RolesGuard)
@@ -188,10 +192,20 @@ export class EventsController {
   @Roles('admin')
   @Put('ticket-type/:ticketTypeId')
   async updateTicketType(
-    @Param('ticketTypeId') ticketTypeId,
+    @Param('ticketTypeId') ticketTypeId: string,
     @Body() dto: UpdatEventTicketTypeDto,
   ) {
     return this.eventsService.updateTicketType(ticketTypeId, dto);
+  }
+
+  @UseGuards(JwtAuthenticationGuard, RolesGuard)
+  @Roles('admin')
+  @Put('promocode/:promocodeId')
+  async updatePromocode(
+    @Param('promocodeId') promocodeId: string,
+    @Body() dto: UpdatePromocodeDto,
+  ) {
+    return this.eventsService.updatePromocode(promocodeId, dto);
   }
 
   @UseGuards(JwtAuthenticationGuard, RolesGuard)
@@ -251,5 +265,12 @@ export class EventsController {
   @Delete('ticket-type/:ticketTypeId')
   async deleteTicketType(@Param('ticketTypeId') ticketTypeId: string) {
     return this.eventsService.deleteTicketType(ticketTypeId);
+  }
+
+  @UseGuards(JwtAuthenticationGuard, RolesGuard)
+  @Roles('admin')
+  @Delete('promocode/:promocodeId')
+  async deletePromocode(@Param('promocodeId') promocodeId: string) {
+    return this.eventsService.deletePromocode(promocodeId);
   }
 }
