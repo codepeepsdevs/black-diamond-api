@@ -13,11 +13,11 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserInfoDto } from './dto/update.user.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { excludePrisma } from 'src/helpers/exclude.helper';
-import { AuthMethod, User } from '@prisma/client';
+import { AuthMethod, Prisma, User } from '@prisma/client';
 import { PaginationQueryDto } from 'src/shared/dto/pagination-query.dto';
 import { GetUsersStatsDto } from './dto/users.dto';
 import * as dateFns from 'date-fns';
-import { convertDateToNewYorkTimeInUTC, fuzzyMatch } from 'src/utils/helpers';
+import { convertDateToNewYorkTimeInUTC } from 'src/utils/helpers';
 import * as XLSX from 'xlsx';
 
 @Injectable()
@@ -103,36 +103,33 @@ export class UsersService {
         : undefined;
     const take = limit ? Number(limit) : undefined;
 
-    // const whereObject: Prisma.UserWhereInput = {
-    //   OR: [
-    //     {
-    //       firstname: {
-    //         contains: search,
-    //         mode: 'insensitive',
-    //       },
-    //       lastname: {
-    //         contains: search,
-    //         mode: 'insensitive',
-    //       },
-    //     },
-    //   ],
-    // };
-    const users = await this.prisma.user.findMany({
-      include: {
-        address: true,
-        billingInfo: true,
-        order: {
-          where: {
-            paymentStatus: 'SUCCESSFUL',
+    const whereObject: Prisma.UserWhereInput = {
+      email: {
+        contains: search,
+      },
+    };
+    const [users, usersCount] = await Promise.all([
+      this.prisma.user.findMany({
+        where: whereObject,
+        include: {
+          address: true,
+          billingInfo: true,
+          order: {
+            where: {
+              paymentStatus: 'SUCCESSFUL',
+            },
           },
         },
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-      skip,
-      take,
-    });
+        orderBy: {
+          createdAt: 'desc',
+        },
+        skip,
+        take,
+      }),
+      this.prisma.user.count({
+        where: whereObject,
+      }),
+    ]);
     // if (!user) {
     //   throw new NotFoundException('User not found');
     // }
@@ -149,12 +146,6 @@ export class UsersService {
     })[] = [];
 
     users.forEach((user) => {
-      if (search) {
-        const fullName = `${user.firstname} ${user.lastname}`;
-        if (!fuzzyMatch(search, fullName)) {
-          return;
-        }
-      }
       const amountSpent = user.order.reduce((accValue, currOrder) => {
         return (accValue += currOrder.amountPaid);
       }, 0);
@@ -177,7 +168,7 @@ export class UsersService {
       _users.push(_user);
     });
 
-    return { users: _users, usersCount: _users.length };
+    return { users: _users, usersCount };
   }
 
   async exportUsersToExcel() {
