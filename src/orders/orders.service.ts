@@ -180,6 +180,7 @@ export class OrdersService {
           // validate the min and max quantity for order
           if (
             ticketType.minQty &&
+            ticketTypeOrder.quantity > 1 &&
             ticketTypeOrder.quantity < ticketType.minQty
           ) {
             throw new InternalServerErrorException(

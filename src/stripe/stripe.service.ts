@@ -139,7 +139,6 @@ export class StripeService {
         // Accumulate total charges and total discount
         // totalChargesInDollars += unitChargesInDollars * ticketOrder.quantity;
         totalDiscountInDollars += unitDiscountInDollars * ticketOrder.quantity;
-        console.log('---unit amount in cents---', unitAmountInCents);
 
         ticketLineItems.push({
           quantity: ticketOrder.quantity,
@@ -210,32 +209,58 @@ export class StripeService {
         unit_amount: totalChargesInCents,
       },
     };
-    const session = await this.stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
-      customer: customerId,
-      line_items: [...allLineItems, feeLineItem],
-      mode: 'payment',
-      success_url: successUrl,
-      cancel_url: cancelUrl,
-      metadata: {
-        orderId: orderId,
-      },
-      // automatic_tax: {
-      //   enabled: true,
-      // },
-      payment_intent_data: {
+
+    const totalAmount = allLineItems.reduce((accValue, currItem) => {
+      return (
+        accValue + Number(currItem.price_data.unit_amount) * currItem.quantity
+      );
+    }, 0);
+
+    // const returnData = {
+    //   allLineItems,
+    //   totalChargesInDollars: totalChargesInCents / 100,
+    //   totalDiscountInDollars,
+    //   totalAmount,
+    // } as const;
+    if (totalAmount > 0) {
+      const session = await this.stripe.checkout.sessions.create({
+        payment_method_types: ['card'],
+        customer: customerId,
+        line_items: [...allLineItems, feeLineItem],
+        mode: 'payment',
+        success_url: successUrl,
+        cancel_url: cancelUrl,
         metadata: {
           orderId: orderId,
         },
-      },
-    });
+        // automatic_tax: {
+        //   enabled: true,
+        // },
+        payment_intent_data: {
+          metadata: {
+            orderId: orderId,
+          },
+        },
+      });
 
-    return {
-      session,
-      allLineItems,
-      totalChargesInDollars: totalChargesInCents / 100,
-      totalDiscountInDollars,
-    };
+      return {
+        allLineItems,
+        totalChargesInDollars: totalChargesInCents / 100,
+        totalDiscountInDollars,
+        totalAmount,
+        session,
+        bypassStripe: false,
+      };
+    } else {
+      return {
+        allLineItems,
+        totalChargesInDollars: totalChargesInCents / 100,
+        totalDiscountInDollars,
+        totalAmount,
+        session: null,
+        bypassStripe: true,
+      };
+    }
   }
 
   async createCustomer(createCustomerData: CreateCustomer): Promise<string> {

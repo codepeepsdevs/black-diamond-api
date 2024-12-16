@@ -47,17 +47,6 @@ export class OrdersController {
     private readonly emailService: EmailsService,
   ) {}
 
-  // @Post('create')
-  // async createOrder(@Body() dto: CreateOrderDto, @Req() req: Request) {
-  //   const authHeader = req.headers['authorization'];
-  //   let token = '';
-  //   if (authHeader) {
-  //     token = authHeader.split(' ')[1];
-  //   }
-
-  //   return this.ordersService.createOrder(dto, token);
-  // }
-
   @Post('create')
   async checkout(
     @Body() body: CreateOrderDto,
@@ -81,7 +70,8 @@ export class OrdersController {
 
     const {
       session,
-      allLineItems,
+      totalAmount,
+      bypassStripe,
       totalChargesInDollars,
       totalDiscountInDollars,
     } = await this.stripeService.createCheckoutSession(
@@ -91,18 +81,22 @@ export class OrdersController {
       order.id,
       promocode,
     );
-    const totalAmount = allLineItems.reduce((accValue, currItem) => {
-      return (
-        accValue + Number(currItem.price_data.unit_amount) * currItem.quantity
+    if (!bypassStripe) {
+      await this.ordersService.setSessionIdAndCharges({
+        orderId: order.id,
+        sessionId: session.id,
+        totalChargesInDollars,
+        totalDiscountInDollars,
+      });
+    } else {
+      // update payment status of order
+      await this.ordersService.updateOrderPaymentStatus(
+        order.id,
+        'SUCCESSFUL',
+        null,
+        null, // convert from cent to dollarss
       );
-    }, 0);
-    await this.ordersService.setSessionIdAndCharges({
-      orderId: order.id,
-      sessionId: session.id,
-      totalChargesInDollars,
-      totalDiscountInDollars,
-    });
-
+    }
     // After successful order placement, send order received email
     const ticketLink = `${this.configService.get(FRONTEND_URL)}/tickets/`; // just take them to tickets page.
 
@@ -126,14 +120,8 @@ export class OrdersController {
       }
       return group;
     }, {});
-    // order.tickets.forEach((ticket) => {
-    //   totalAmount += ticket.ticketType.price;
-    // });
-    // order.addonOrder.forEach((addonsOrder) => {
-    //   totalAmount += addonsOrder.addon.price;
-    // });
     await this.emailService.sendOrderReceived(order.email, {
-      amountToPay: totalAmount / 100 + totalChargesInDollars, // total amount is in cents, divide by 100 to convert to dollar
+      amountToPay: bypassStripe ? 0 : totalAmount / 100 + totalChargesInDollars, // total amount is in cents, divide by 100 to convert to dollar
       order,
       ticketLink: ticketLink,
       eventDate: getTimeZoneDateRange(
@@ -148,10 +136,15 @@ export class OrdersController {
         },
       ),
       ticketGroups: Object.values(ticketGroup),
-      totalChargesInDollars,
+      totalChargesInDollars: bypassStripe ? 0 : totalChargesInDollars,
       totalDiscountInDollars,
     });
-    res
+    if (bypassStripe) {
+      return res
+        .status(200)
+        .json({ ...order, sessionId: null, sessionUrl: null });
+    }
+    return res
       .status(200)
       .json({ ...order, sessionId: session.id, sessionUrl: session.url });
   }
