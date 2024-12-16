@@ -463,6 +463,7 @@ export class OrdersService {
     const { skip, take } = getPagination({ _page, _limit });
     const nowUTC = new Date();
     const whereObject: Prisma.OrderWhereInput = {
+      paymentStatus: 'SUCCESSFUL',
       event: {
         startTime:
           eventStatus === 'past'
