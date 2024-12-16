@@ -219,8 +219,8 @@ model TicketType {
   maxQty     Int?
   visibility TicketTypeVisibility @default(VISIBLE)
 
-  eventId String @db.ObjectId
-  event   Event  @relation(fields: [eventId], references: [id])
+  eventId String? @db.ObjectId
+  event   Event?  @relation(fields: [eventId], references: [id])
 
   promoCodeIds String[]    @db.ObjectId
   promoCodes   PromoCode[] @relation(fields: [promoCodeIds], references: [id])
