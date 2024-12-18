@@ -82,16 +82,19 @@ export class EventsService {
     ...dto
   }: CreateEventTicketTypeDto) {
     const utcStartDate =
-      dto.visibility === 'CUSTOM_SCHEDULE'
+      dto.visibility === 'CUSTOM_SCHEDULE' ||
+      dto.visibility === 'HIDDEN_WHEN_NOT_ON_SALE'
         ? combineDateAndTime(startDate, startTime)
         : null;
     const utcEndDate =
-      dto.visibility === 'CUSTOM_SCHEDULE'
+      dto.visibility === 'CUSTOM_SCHEDULE' ||
+      dto.visibility === 'HIDDEN_WHEN_NOT_ON_SALE'
         ? combineDateAndTime(endDate, endTime)
         : null;
 
     if (
-      dto.visibility === 'CUSTOM_SCHEDULE' &&
+      (dto.visibility === 'CUSTOM_SCHEDULE' ||
+        dto.visibility === 'HIDDEN_WHEN_NOT_ON_SALE') &&
       utcEndDate.getTime() < utcStartDate.getTime()
     ) {
       throw new InternalServerErrorException(
@@ -171,6 +174,60 @@ export class EventsService {
   }
 
   async getEvent(eventId: Event['id']) {
+    const event = await this.prisma.event.findFirst({
+      where: {
+        id: eventId,
+      },
+      include: {
+        ticketTypes: {
+          include: {
+            tickets: {
+              where: {
+                order: {
+                  paymentStatus: 'SUCCESSFUL',
+                },
+              },
+            },
+          },
+        },
+        addons: true,
+      },
+    });
+
+    if (!event) {
+      throw new NotFoundException('Event not found');
+    }
+
+    event.ticketTypes = event.ticketTypes.filter((ticketType, index) => {
+      const soldQuantity = ticketType.tickets.length;
+
+      event.ticketTypes[index]['soldQuantity'] = soldQuantity;
+      // TODO: Handle the fact that it should not be showing in typescript also
+      // Delete the tickets field
+      delete event.ticketTypes[index].tickets;
+
+      // removing ticket types that are not yet displayable
+      if (ticketType.visibility === 'VISIBLE') {
+        return true;
+      } else if (ticketType.visibility === 'CUSTOM_SCHEDULE') {
+        return true;
+      } else if (ticketType.visibility === 'HIDDEN') {
+        return false;
+      } else if (ticketType.visibility === 'HIDDEN_WHEN_NOT_ON_SALE') {
+        // check if it is within the time period the ticket should show
+        // this is done by comparing if current date is within start and end date
+        return isTicketTypeVisible(ticketType.startDate, ticketType.endDate);
+      } else {
+        return true;
+      }
+    });
+
+    event['eventStatus'] = getEventStatus(event.endTime);
+
+    return event as typeof event & EventStatus;
+  }
+
+  async adminGetEvent(eventId: Event['id']) {
     const event = await this.prisma.event.findFirst({
       where: {
         id: eventId,
@@ -381,6 +438,10 @@ export class EventsService {
           contains: search,
           mode: 'insensitive',
         },
+        /**
+         * the query would filter by startTime if eventStatus is past or upciming otherwise,
+         * it would filter by publish status, returning only non published events if it is draft
+         * */
         startTime:
           eventStatus === 'past'
             ? {
@@ -391,6 +452,7 @@ export class EventsService {
                   gt: nowUTC,
                 }
               : undefined,
+        isPublished: eventStatus === 'draft' ? false : undefined,
       };
 
       const [events, eventsCount] = await Promise.all([
@@ -478,8 +540,45 @@ export class EventsService {
           createdAt: 'desc',
         },
       });
+      const event = await this.prisma.event.findFirst({
+        where: {
+          id: eventId,
+        },
+      });
 
-      return ticketTypes;
+      if (!event) {
+        throw new InternalServerErrorException(
+          'Error fetching ticket types, invalid event',
+        );
+      }
+
+      const extendedTicketTypes = ticketTypes.map((ticketType) => {
+        let saleStatus: 'not-on-sale' | 'on-sale' | 'sale-ended' = 'on-sale';
+        if (ticketType.endDate && ticketType.startDate) {
+          if (ticketType.endDate < new Date()) {
+            saleStatus = 'sale-ended';
+          } else {
+            if (ticketType.startDate >= new Date()) {
+              saleStatus = 'on-sale';
+            } else {
+              saleStatus = 'not-on-sale';
+            }
+          }
+        } else {
+          if (event.endTime < new Date()) {
+            saleStatus = 'sale-ended';
+          } else {
+            saleStatus = 'on-sale';
+          }
+        }
+
+        return {
+          ...ticketType,
+          saleStatus,
+        };
+      });
+
+      return extendedTicketTypes;
     } catch (e) {
       console.log(e);
       throw new HttpException(
@@ -664,16 +763,19 @@ export class EventsService {
     { startDate, startTime, endDate, endTime, ...dto }: UpdatEventTicketTypeDto,
   ) {
     const utcStartDate =
-      dto.visibility === 'CUSTOM_SCHEDULE'
+      dto.visibility === 'CUSTOM_SCHEDULE' ||
+      dto.visibility === 'HIDDEN_WHEN_NOT_ON_SALE'
         ? combineDateAndTime(startDate, startTime)
         : null;
     const utcEndDate =
-      dto.visibility === 'CUSTOM_SCHEDULE'
+      dto.visibility === 'CUSTOM_SCHEDULE' ||
+      dto.visibility === 'HIDDEN_WHEN_NOT_ON_SALE'
         ? combineDateAndTime(endDate, endTime)
         : null;
 
     if (
-      dto.visibility === 'CUSTOM_SCHEDULE' &&
+      (dto.visibility === 'CUSTOM_SCHEDULE' ||
+        dto.visibility === 'HIDDEN_WHEN_NOT_ON_SALE') &&
       utcEndDate.getTime() < utcStartDate.getTime()
     ) {
       throw new InternalServerErrorException(

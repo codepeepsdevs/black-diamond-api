@@ -107,6 +107,11 @@ export class EventsController {
     return this.eventsService.getEvent(eventId);
   }
 
+  @Get('admin-get-event/:eventId')
+  async adminGetEvent(@Param('eventId') eventId: string) {
+    return this.eventsService.adminGetEvent(eventId);
+  }
+
   @Post('apply-promocode/')
   async getPromocode(@Body() dto: GetPromocodeDto) {
     return this.eventsService.getPromocode(dto);
@@ -124,8 +129,8 @@ export class EventsController {
     return this.eventsService.adminGetEvents(paginationQuery);
   }
 
-  // @UseGuards(JwtAuthenticationGuard, RolesGuard)
-  // @Roles()
+  @UseGuards(JwtAuthenticationGuard, RolesGuard)
+  @Roles('admin')
   @Get(':eventId/get-ticket-types')
   async getEventTicketTypes(@Param('eventId') eventId: string) {
     return this.eventsService.getEventTicketTypes(eventId);

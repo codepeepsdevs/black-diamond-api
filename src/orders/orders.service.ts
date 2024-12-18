@@ -167,7 +167,8 @@ export class OrdersService {
           // check if the ticket is in the time frame for sale
           let shouldSell = true;
           if (
-            ticketType.visibility === 'CUSTOM_SCHEDULE' &&
+            (ticketType.visibility === 'CUSTOM_SCHEDULE' ||
+              ticketType.visibility === 'HIDDEN_WHEN_NOT_ON_SALE') &&
             !isTicketTypeVisible(ticketType.startDate, ticketType.endDate)
           ) {
             shouldSell = false;
@@ -506,17 +507,17 @@ export class OrdersService {
         }),
       ]);
 
-      const extendedOrder = orders.map((order) => {
-        const orderAmount = order.tickets.reduce((accValue, currTicket) => {
-          return accValue + currTicket.ticketType.price;
-        }, 0);
-        return {
-          ...order,
-          orderAmount,
-        };
-      }, 0);
+      // const extendedOrder = orders.map((order) => {
+      //   const orderAmount = order.tickets.reduce((accValue, currTicket) => {
+      //     return accValue + currTicket.ticketType.price;
+      //   }, 0);
+      //   return {
+      //     ...order,
+      //     orderAmount,
+      //   };
+      // }, 0);
 
-      return { orders: extendedOrder, ordersCount };
+      return { orders, ordersCount };
     } catch (e) {
       console.log(e);
       throw new HttpException(

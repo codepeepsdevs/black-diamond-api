@@ -132,7 +132,11 @@ export class CreateEventTicketTypeDto {
   @IsNotEmpty()
   quantity: number;
 
-  @ValidateIf((dto) => dto.visibility === 'CUSTOM_SCHEDULE')
+  @ValidateIf(
+    (dto) =>
+      dto.visibility === 'CUSTOM_SCHEDULE' ||
+      dto.visibility === 'HIDDEN_WHEN_NOT_ON_SALE',
+  )
   @IsDate({ message: 'Start date must be a valid date' })
   @Type(() => Date)
   @IsNotEmpty({
@@ -140,14 +144,22 @@ export class CreateEventTicketTypeDto {
   })
   startDate: Date;
 
-  @ValidateIf((dto) => dto.visibility === 'CUSTOM_SCHEDULE')
+  @ValidateIf(
+    (dto) =>
+      dto.visibility === 'CUSTOM_SCHEDULE' ||
+      dto.visibility === 'HIDDEN_WHEN_NOT_ON_SALE',
+  )
   @IsString({ message: 'Start time must be a string' })
   @IsNotEmpty({
     message: 'Start time is required when visibility is a custom schedule',
   })
   startTime: string;
 
-  @ValidateIf((dto) => dto.visibility === 'CUSTOM_SCHEDULE')
+  @ValidateIf(
+    (dto) =>
+      dto.visibility === 'CUSTOM_SCHEDULE' ||
+      dto.visibility === 'HIDDEN_WHEN_NOT_ON_SALE',
+  )
   @IsDate({ message: 'End date must be a valid date' })
   @Type(() => Date)
   @IsNotEmpty({
@@ -155,7 +167,11 @@ export class CreateEventTicketTypeDto {
   })
   endDate: Date;
 
-  @ValidateIf((dto) => dto.visibility === 'CUSTOM_SCHEDULE')
+  @ValidateIf(
+    (dto) =>
+      dto.visibility === 'CUSTOM_SCHEDULE' ||
+      dto.visibility === 'HIDDEN_WHEN_NOT_ON_SALE',
+  )
   @IsString({ message: 'End time must be a string' })
   @IsNotEmpty({
     message: 'End time is required when visibility is custom schedule',
@@ -418,7 +434,9 @@ export class UpdatEventTicketTypeDto {
   quantity: number;
 
   @ValidateIf(
-    (dto: UpdatEventTicketTypeDto) => dto.visibility === 'CUSTOM_SCHEDULE',
+    (dto: UpdatEventTicketTypeDto) =>
+      dto.visibility === 'CUSTOM_SCHEDULE' ||
+      dto.visibility === 'HIDDEN_WHEN_NOT_ON_SALE',
   )
   @IsOptional()
   @IsDate()
@@ -426,14 +444,18 @@ export class UpdatEventTicketTypeDto {
   startDate: Date;
 
   @ValidateIf(
-    (dto: UpdatEventTicketTypeDto) => dto.visibility === 'CUSTOM_SCHEDULE',
+    (dto: UpdatEventTicketTypeDto) =>
+      dto.visibility === 'CUSTOM_SCHEDULE' ||
+      dto.visibility === 'HIDDEN_WHEN_NOT_ON_SALE',
   )
   @IsString()
   @IsNotEmpty()
   startTime: string;
 
   @ValidateIf(
-    (dto: UpdatEventTicketTypeDto) => dto.visibility === 'CUSTOM_SCHEDULE',
+    (dto: UpdatEventTicketTypeDto) =>
+      dto.visibility === 'CUSTOM_SCHEDULE' ||
+      dto.visibility === 'HIDDEN_WHEN_NOT_ON_SALE',
   )
   @IsOptional()
   @IsDate()
@@ -441,7 +463,9 @@ export class UpdatEventTicketTypeDto {
   endDate: Date;
 
   @ValidateIf(
-    (dto: UpdatEventTicketTypeDto) => dto.visibility === 'CUSTOM_SCHEDULE',
+    (dto: UpdatEventTicketTypeDto) =>
+      dto.visibility === 'CUSTOM_SCHEDULE' ||
+      dto.visibility === 'HIDDEN_WHEN_NOT_ON_SALE',
   )
   @IsString()
   @IsNotEmpty()
@@ -473,7 +497,7 @@ export class UpdatEventTicketTypeDto {
   maxQty?: number;
 }
 
-const EventStatus = ['all', 'past', 'upcoming'] as const;
+const EventStatus = ['all', 'past', 'upcoming', 'draft'] as const;
 
 export class EventStatusQuery {
   @IsOptional()
