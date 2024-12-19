@@ -452,7 +452,7 @@ export class EventsService {
                   gt: nowUTC,
                 }
               : undefined,
-        isPublished: eventStatus === 'draft' ? false : undefined,
+        isPublished: eventStatus === 'draft' ? false : true,
       };
 
       const [events, eventsCount] = await Promise.all([
