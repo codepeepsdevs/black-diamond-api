@@ -108,7 +108,7 @@ export class UsersService {
         contains: search,
       },
     };
-    const [users, usersCount] = await Promise.all([
+    const [users, usersCount, totalUsers] = await Promise.all([
       this.prisma.user.findMany({
         where: whereObject,
         include: {
@@ -129,6 +129,7 @@ export class UsersService {
       this.prisma.user.count({
         where: whereObject,
       }),
+      this.prisma.user.count(),
     ]);
     // if (!user) {
     //   throw new NotFoundException('User not found');
@@ -168,7 +169,7 @@ export class UsersService {
       _users.push(_user);
     });
 
-    return { users: _users, usersCount };
+    return { users: _users, usersCount, totalUsers };
   }
 
   async exportUsersToExcel() {
