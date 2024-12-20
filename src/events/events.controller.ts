@@ -15,6 +15,7 @@ import {
 import { EventsService } from './events.service';
 import { Roles } from 'src/auth/guards/roles.decorator';
 import {
+  CopyEventDto,
   CreateEventAddonDto,
   CreateEventDetailsDto,
   CreateEventPromoCode,
@@ -156,6 +157,31 @@ export class EventsController {
   @Get('past-events')
   async getPastEvents(@Query() paginationQuery: PaginationQueryDto) {
     return this.eventsService.getPastEvents(paginationQuery);
+  }
+
+  @UseGuards(JwtAuthenticationGuard, RolesGuard)
+  @Roles('admin')
+  @Post('copy-event/:eventId')
+  @UseInterceptors(
+    FileFieldsInterceptor(
+      [
+        {
+          name: 'coverImage',
+          maxCount: 1,
+        },
+        {
+          name: 'images',
+          maxCount: 10,
+        },
+      ],
+      multerOptions,
+    ),
+  )
+  async copyEvent(
+    @Param('eventId') eventId: string,
+    @Body() dto: CopyEventDto,
+  ) {
+    return this.eventsService.copyEvent(eventId, dto);
   }
 
   @UseGuards(JwtAuthenticationGuard, RolesGuard)

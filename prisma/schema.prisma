@@ -194,17 +194,19 @@ model Event {
   // endDateOfSale           DateTime
   ticketTypes             TicketType[]
   isPublished             Boolean       @default(false)
-  eventBriteURL           String?
+  // eventBriteURL           String?
   // eventStatus             EventStatus   @default(UPCOMING)
   ticketSalesEndMessage   String? // These two (displayTicketsRemainder) would be a field in the update event details controller/service or endpoint
   displayTicketsRemainder Boolean       @default(false)
 
-  refundPolicy String?
+  refundPolicy    String?
+  hasRefundPolicy Boolean @default(false)
 
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
-  order     Order[]
-  addons    EventAddons[]
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  order      Order[]
+  addons     EventAddons[]
+  promocodes PromoCode[]
 }
 
 model TicketType {
@@ -249,6 +251,7 @@ model PromoCode {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   order     Order[]
+  Event     Event    @relation(fields: [eventId], references: [id])
 }
 
 model Order {
