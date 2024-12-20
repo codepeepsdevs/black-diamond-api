@@ -234,7 +234,7 @@ model TicketType {
 model PromoCode {
   id                       String   @id @default(auto()) @map("_id") @db.ObjectId
   name                     String
-  key                      String   @unique
+  key                      String
   limit                    Int
   absoluteDiscountAmount   Float?   @default(0)
   percentageDiscountAmount Float?   @default(0)

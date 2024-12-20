@@ -125,6 +125,15 @@ export class EventsService {
       ...dto
     }: CreateEventPromoCode,
   ) {
+    const keyExists = await this.prisma.promoCode.findFirst({
+      where: {
+        eventId,
+        key: dto.key,
+      },
+    });
+    if (keyExists) {
+      throw new InternalServerErrorException('Duplicate key');
+    }
     try {
       const utcStartDate = combineDateAndTime(dto.startDate, dto.startTime);
       const utcEndDate = combineDateAndTime(dto.endDate, dto.endTime);
@@ -452,7 +461,12 @@ export class EventsService {
                   gt: nowUTC,
                 }
               : undefined,
-        isPublished: eventStatus === 'draft' ? false : true,
+        isPublished:
+          eventStatus === 'draft'
+            ? false
+            : eventStatus === 'upcoming'
+              ? true
+              : undefined,
       };
 
       const [events, eventsCount] = await Promise.all([
@@ -821,6 +835,19 @@ export class EventsService {
 
     if (!promocode) {
       throw new NotFoundException('Item to update not found');
+    }
+
+    const keyExists = await this.prisma.promoCode.findFirst({
+      where: {
+        eventId: promocode.eventId,
+        key: dto.key,
+      },
+    });
+
+    if (keyExists && keyExists.id !== promocodeId) {
+      throw new InternalServerErrorException(
+        'This promocode key already exists',
+      );
     }
 
     const idsToRemove = promocode.ticketTypeIds
