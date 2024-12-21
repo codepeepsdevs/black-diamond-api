@@ -9,7 +9,6 @@ export class DateRangeQueryDto {
   // @Type(() => Date)
   @Transform(
     ({ value }) => {
-      console.log('startDate in dto', value);
       let date: Date;
       // If value is undefined or invalid, set default to one month ago
       if (!value || isNaN(Date.parse(value))) {

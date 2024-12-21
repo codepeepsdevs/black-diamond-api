@@ -119,6 +119,20 @@ export class OrdersService {
           if (userExists) {
             user = userExists;
             newAccount = false;
+            // if user exists and they don't have a phone number associated with their profile, take it from the checkout data
+            if (!userExists.phone) {
+              // Not awaited so it does not stop the order from being placed
+              this.prisma.user
+                .update({
+                  where: {
+                    id: userExists.id,
+                  },
+                  data: {
+                    phone: dto.phone,
+                  },
+                })
+                .catch((e) => console.error(e));
+            }
           } else {
             newAccount = true;
             const hashedPassword = await bcrypt.hash('DEFAULT_PASSWORD', 10);
@@ -126,6 +140,7 @@ export class OrdersService {
               user = await prisma.user.create({
                 data: {
                   email: dto.email.toLowerCase(),
+                  phone: dto.phone,
                   password: hashedPassword,
                   authMethod: 'EMAIL',
                   emailConfirmed: false,
