@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import {
+  CopyEventDto,
   CreateEventAddonDto,
   CreateEventDetailsDto,
   CreateEventPromoCode,
@@ -27,6 +28,7 @@ import {
   isPromocodeActive,
   isTicketTypeVisible,
 } from 'src/utils/helpers';
+import * as dateFns from 'date-fns';
 // import { cloudinary } from 'src/cloudinary/cloudinary.config';
 
 export type EventStatus = { eventStatus: 'UPCOMING' | 'PAST' };
@@ -36,7 +38,14 @@ export class EventsService {
   constructor(private prisma: PrismaService) {}
 
   async createEventDetails(
-    { startDate, startTime, endDate, endTime, ...dto }: CreateEventDetailsDto,
+    {
+      startDate,
+      startTime,
+      endDate,
+      endTime,
+      refundPolicy,
+      ...dto
+    }: CreateEventDetailsDto,
     coverImage: Express.Multer.File[],
     images: Express.Multer.File[],
   ) {
@@ -57,6 +66,7 @@ export class EventsService {
           images: images.map((image) => image.path),
           startTime: utcStartTime,
           endTime: utcEndTime,
+          refundPolicy: dto.hasRefundPolicy ? refundPolicy : undefined,
         },
         include: {
           ticketTypes: true,
@@ -125,6 +135,15 @@ export class EventsService {
       ...dto
     }: CreateEventPromoCode,
   ) {
+    const keyExists = await this.prisma.promoCode.findFirst({
+      where: {
+        eventId,
+        key: dto.key,
+      },
+    });
+    if (keyExists) {
+      throw new InternalServerErrorException('Duplicate key');
+    }
     try {
       const utcStartDate = combineDateAndTime(dto.startDate, dto.startTime);
       const utcEndDate = combineDateAndTime(dto.endDate, dto.endTime);
@@ -452,7 +471,12 @@ export class EventsService {
                   gt: nowUTC,
                 }
               : undefined,
-        isPublished: eventStatus === 'draft' ? false : true,
+        isPublished:
+          eventStatus === 'draft'
+            ? false
+            : eventStatus === 'upcoming'
+              ? true
+              : undefined,
       };
 
       const [events, eventsCount] = await Promise.all([
@@ -555,10 +579,11 @@ export class EventsService {
       const extendedTicketTypes = ticketTypes.map((ticketType) => {
         let saleStatus: 'not-on-sale' | 'on-sale' | 'sale-ended' = 'on-sale';
         if (ticketType.endDate && ticketType.startDate) {
-          if (ticketType.endDate < new Date()) {
+          const nowUTC = new Date();
+          if (nowUTC > ticketType.endDate) {
             saleStatus = 'sale-ended';
           } else {
-            if (ticketType.startDate >= new Date()) {
+            if (nowUTC >= ticketType.startDate) {
               saleStatus = 'on-sale';
             } else {
               saleStatus = 'not-on-sale';
@@ -705,7 +730,14 @@ export class EventsService {
 
   async updateEvent(
     eventId: Event['id'],
-    { startDate, startTime, endDate, endTime, ...dto }: UpdateEventDto,
+    {
+      startDate,
+      startTime,
+      endDate,
+      endTime,
+      refundPolicy,
+      ...dto
+    }: UpdateEventDto,
     coverImage?: Express.Multer.File[],
     images?: Express.Multer.File[],
   ) {
@@ -746,6 +778,7 @@ export class EventsService {
           coverImage: newCoverImage,
           startTime: utcStartTime,
           endTime: utcEndTime,
+          refundPolicy: dto.hasRefundPolicy ? refundPolicy : undefined,
         },
       });
 
@@ -754,6 +787,127 @@ export class EventsService {
       console.log(e);
       throw new InternalServerErrorException(
         'Something went wrong while updating event details',
+      );
+    }
+  }
+
+  async copyEvent(
+    eventId: string,
+    { startDate, startTime, endDate, endTime, ...dto }: CopyEventDto,
+  ) {
+    const eventToCopy = await this.prisma.event.findFirst({
+      where: {
+        id: eventId,
+      },
+      include: {
+        ticketTypes: true,
+        promocodes: true,
+        addons: true,
+      },
+    });
+
+    if (!eventToCopy) {
+      throw new InternalServerErrorException('Event to copy not found');
+    }
+
+    try {
+      const utcStartTime = combineDateAndTime(startDate, startTime);
+      const utcEndTime = combineDateAndTime(endDate, endTime);
+
+      const copiedEvent = await this.prisma.$transaction(
+        async (tx) => {
+          const eventCopy = await tx.event.create({
+            data: {
+              images: eventToCopy.images,
+              coverImage: eventToCopy.coverImage,
+              displayTicketsRemainder: eventToCopy.displayTicketsRemainder,
+              location: eventToCopy.location,
+              locationType: eventToCopy.locationType,
+              description: eventToCopy.description,
+              summary: dto.summary,
+              endTime: utcEndTime,
+              startTime: utcStartTime,
+              name: dto.name,
+              isPublished: eventToCopy.isPublished,
+              highlights: eventToCopy.highlights,
+              refundPolicy: eventToCopy.refundPolicy,
+              ticketSalesEndMessage: eventToCopy.ticketSalesEndMessage,
+              hasRefundPolicy: eventToCopy.hasRefundPolicy,
+            },
+          });
+
+          await Promise.all([
+            // Copy addons
+
+            eventToCopy.addons.length > 0
+              ? tx.eventAddons.createMany({
+                  data: eventToCopy.addons.map((addon) => {
+                    return {
+                      name: addon.name,
+                      description: addon.description,
+                      price: addon.price,
+                      totalQuantity: addon.totalQuantity,
+                      startTime: utcStartTime,
+                      endTime: utcEndTime,
+                      maximumQuantityPerOrder: addon.maximumQuantityPerOrder,
+                      minimumQuantityPerOrder: addon.minimumQuantityPerOrder,
+                      image: addon.image,
+                      eventId: eventCopy.id,
+                    };
+                  }),
+                })
+              : null,
+
+            // Copoy promocodes
+            eventToCopy.promocodes.length > 0
+              ? tx.promoCode.createMany({
+                  data: eventToCopy.promocodes.map((promocode) => {
+                    return {
+                      eventId: eventCopy.id,
+                      key: promocode.key,
+                      limit: promocode.limit,
+                      name: promocode.name,
+                      promoStartDate: utcStartTime,
+                      promoEndDate: utcEndTime,
+                      absoluteDiscountAmount: promocode.absoluteDiscountAmount,
+                      percentageDiscountAmount:
+                        promocode.percentageDiscountAmount,
+                    };
+                  }),
+                })
+              : null,
+
+            // Copy tickettypes
+            eventToCopy.ticketTypes.length > 0
+              ? tx.ticketType.createMany({
+                  data: eventToCopy.ticketTypes.map((ticketType) => ({
+                    name: ticketType.name,
+                    price: ticketType.price,
+                    quantity: ticketType.quantity,
+                    minQty: ticketType.minQty,
+                    maxQty: ticketType.maxQty,
+                    eventId: eventCopy.id,
+                    startDate: dateFns.addMonths(new Date(), 1),
+                    endDate: dateFns.addMonths(new Date(), 2),
+                    visibility: ticketType.visibility,
+                  })),
+                })
+              : null,
+          ]);
+
+          return eventCopy;
+        },
+        {
+          maxWait: 250000, // Maximum time (in milliseconds) to wait for the transaction to start
+          timeout: 250000, // Maximum time (in milliseconds) for the transaction to complete
+        },
+      );
+
+      return copiedEvent;
+    } catch (e) {
+      console.error(e);
+      throw new InternalServerErrorException(
+        'Something went wrong while copying event',
       );
     }
   }
@@ -821,6 +975,19 @@ export class EventsService {
 
     if (!promocode) {
       throw new NotFoundException('Item to update not found');
+    }
+
+    const keyExists = await this.prisma.promoCode.findFirst({
+      where: {
+        eventId: promocode.eventId,
+        key: dto.key,
+      },
+    });
+
+    if (keyExists && keyExists.id !== promocodeId) {
+      throw new InternalServerErrorException(
+        'This promocode key already exists',
+      );
     }
 
     const idsToRemove = promocode.ticketTypeIds

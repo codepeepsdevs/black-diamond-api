@@ -1,6 +1,7 @@
 import { Transform, Type } from 'class-transformer';
 import {
   IsArray,
+  IsBoolean,
   IsDate,
   IsEnum,
   IsInt,
@@ -109,9 +110,14 @@ export class CreateEventDetailsDto {
   // @Type(() => TicketTypeDto)
   // ticketTypes: TicketTypeDto[];
 
-  @IsOptional()
+  @ValidateIf((o: CreateEventDetailsDto) => o.hasRefundPolicy)
+  @IsNotEmpty()
   @IsString()
   refundPolicy: string;
+
+  @IsBoolean()
+  @Transform(({ value }) => value === 'true')
+  hasRefundPolicy: boolean;
 
   @IsOptional()
   @IsString()
@@ -414,13 +420,54 @@ export class UpdateEventDto {
   // @Type(() => TicketTypeDto)
   // ticketTypes: TicketTypeDto[];
 
-  @IsOptional()
+  @ValidateIf((o: UpdateEventDto) => o.hasRefundPolicy)
+  @IsNotEmpty()
   @IsString()
   refundPolicy?: string;
+
+  @IsBoolean()
+  @Transform(({ value }) => value === 'true')
+  hasRefundPolicy?: boolean;
 
   // @IsNumber()
   // @Type(() => Number)
   // price: number;
+}
+
+export class CopyEventDto {
+  @IsNotEmpty()
+  @IsString()
+  name?: string;
+
+  @IsNotEmpty()
+  @IsString()
+  summary?: string;
+
+  @IsDate({ message: 'Start date must be a valid date' })
+  @Type(() => Date)
+  @IsNotEmpty({
+    message: 'Start date is required',
+  })
+  startDate: Date;
+
+  @IsString({ message: 'Start time must be a string' })
+  @IsNotEmpty({
+    message: 'Start time is required',
+  })
+  startTime: string;
+
+  @IsDate({ message: 'End date must be a valid date' })
+  @Type(() => Date)
+  @IsNotEmpty({
+    message: 'End date is required',
+  })
+  endDate: Date;
+
+  @IsString({ message: 'End time must be a string' })
+  @IsNotEmpty({
+    message: 'End time is required',
+  })
+  endTime: string;
 }
 
 export class UpdatEventTicketTypeDto {
