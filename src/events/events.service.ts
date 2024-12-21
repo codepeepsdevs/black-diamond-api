@@ -28,7 +28,7 @@ import {
   isPromocodeActive,
   isTicketTypeVisible,
 } from 'src/utils/helpers';
-import * as dateFns from 'date-fns';
+// import * as dateFns from 'date-fns';
 // import { cloudinary } from 'src/cloudinary/cloudinary.config';
 
 export type EventStatus = { eventStatus: 'UPCOMING' | 'PAST' };
@@ -887,8 +887,8 @@ export class EventsService {
                     minQty: ticketType.minQty,
                     maxQty: ticketType.maxQty,
                     eventId: eventCopy.id,
-                    startDate: dateFns.addMonths(new Date(), 1),
-                    endDate: dateFns.addMonths(new Date(), 2),
+                    startDate: utcStartTime,
+                    endDate: utcEndTime,
                     visibility: ticketType.visibility,
                   })),
                 })
