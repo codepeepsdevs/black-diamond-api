@@ -811,7 +811,7 @@ export class EventsService {
       },
       include: {
         ticketTypes: true,
-        promocodes: true,
+        // promocodes: true,
         addons: true,
       },
     });
@@ -868,24 +868,24 @@ export class EventsService {
                 })
               : null,
 
-            // Copoy promocodes
-            eventToCopy.promocodes.length > 0
-              ? tx.promoCode.createMany({
-                  data: eventToCopy.promocodes.map((promocode) => {
-                    return {
-                      eventId: eventCopy.id,
-                      key: promocode.key,
-                      limit: promocode.limit,
-                      name: promocode.name,
-                      promoStartDate: utcStartTime,
-                      promoEndDate: utcEndTime,
-                      absoluteDiscountAmount: promocode.absoluteDiscountAmount,
-                      percentageDiscountAmount:
-                        promocode.percentageDiscountAmount,
-                    };
-                  }),
-                })
-              : null,
+            // Copy promocodes
+            // eventToCopy.promocodes.length > 0
+            //   ? tx.promoCode.createMany({
+            //       data: eventToCopy.promocodes.map((promocode) => {
+            //         return {
+            //           eventId: eventCopy.id,
+            //           key: promocode.key,
+            //           limit: promocode.limit,
+            //           name: promocode.name,
+            //           promoStartDate: utcStartTime,
+            //           promoEndDate: utcEndTime,
+            //           absoluteDiscountAmount: promocode.absoluteDiscountAmount,
+            //           percentageDiscountAmount:
+            //             promocode.percentageDiscountAmount,
+            //         };
+            //       }),
+            //     })
+            //   : null,
 
             // Copy tickettypes
             eventToCopy.ticketTypes.length > 0
