@@ -1,7 +1,6 @@
 import { Transform, Type } from 'class-transformer';
 import {
   IsArray,
-  IsBoolean,
   IsDate,
   IsEnum,
   IsInt,
@@ -110,14 +109,14 @@ export class CreateEventDetailsDto {
   // @Type(() => TicketTypeDto)
   // ticketTypes: TicketTypeDto[];
 
-  @ValidateIf((o: CreateEventDetailsDto) => o.hasRefundPolicy)
+  @ValidateIf((o: CreateEventDetailsDto) => o.hasRefundPolicy === 'true')
   @IsNotEmpty()
   @IsString()
   refundPolicy: string;
 
-  @IsBoolean()
-  @Transform(({ value }) => value === 'true')
-  hasRefundPolicy: boolean;
+  @IsString()
+  @IsNotEmpty()
+  hasRefundPolicy: 'true' | 'false';
 
   @IsOptional()
   @IsString()
@@ -420,14 +419,14 @@ export class UpdateEventDto {
   // @Type(() => TicketTypeDto)
   // ticketTypes: TicketTypeDto[];
 
-  @ValidateIf((o: UpdateEventDto) => o.hasRefundPolicy)
+  @ValidateIf((o: UpdateEventDto) => o.hasRefundPolicy === 'true')
   @IsNotEmpty()
   @IsString()
   refundPolicy?: string;
 
-  @IsBoolean()
-  @Transform(({ value }) => value === 'true')
-  hasRefundPolicy?: boolean;
+  @IsString()
+  @IsNotEmpty()
+  hasRefundPolicy?: 'true' | 'false';
 
   // @IsNumber()
   // @Type(() => Number)

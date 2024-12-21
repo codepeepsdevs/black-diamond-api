@@ -44,6 +44,8 @@ export class EventsService {
       endDate,
       endTime,
       refundPolicy,
+      location,
+      hasRefundPolicy,
       ...dto
     }: CreateEventDetailsDto,
     coverImage: Express.Multer.File[],
@@ -66,7 +68,10 @@ export class EventsService {
           images: images.map((image) => image.path),
           startTime: utcStartTime,
           endTime: utcEndTime,
-          refundPolicy: dto.hasRefundPolicy ? refundPolicy : undefined,
+          hasRefundPolicy: hasRefundPolicy === 'true',
+          refundPolicy: hasRefundPolicy === 'true' ? refundPolicy : undefined,
+          location:
+            dto.locationType === 'TO_BE_ANNOUNCED' ? undefined : location,
         },
         include: {
           ticketTypes: true,
@@ -736,6 +741,8 @@ export class EventsService {
       endDate,
       endTime,
       refundPolicy,
+      hasRefundPolicy,
+      location,
       ...dto
     }: UpdateEventDto,
     coverImage?: Express.Multer.File[],
@@ -778,7 +785,10 @@ export class EventsService {
           coverImage: newCoverImage,
           startTime: utcStartTime,
           endTime: utcEndTime,
-          refundPolicy: dto.hasRefundPolicy ? refundPolicy : undefined,
+          hasRefundPolicy: hasRefundPolicy === 'true',
+          refundPolicy: hasRefundPolicy === 'true' ? refundPolicy : undefined,
+          location:
+            dto.locationType === 'TO_BE_ANNOUNCED' ? undefined : location,
         },
       });
 
