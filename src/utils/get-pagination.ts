@@ -1,11 +1,9 @@
 export const getPagination = ({ _page, _limit }) => {
-  const page = Number(_page);
-  const limit = Number(_limit);
+  const page = parseInt(_page);
+  const limit = parseInt(_limit);
   const skip =
-    !isNaN(page) && !isNaN(limit)
-      ? Math.abs((page - 1) * Number(limit))
-      : undefined;
-  const take = limit ? Number(limit) : undefined;
+    !isNaN(page) && !isNaN(limit) ? Math.abs((page - 1) * limit) : undefined;
+  const take = limit ? limit : undefined;
 
   return {
     skip,

@@ -14,7 +14,6 @@ import {
   GenerateOrderReportQueryDto,
   GetOrdersQuery,
   GetRevenueQueryDto,
-  GeneratePartyListDto,
   UserOrderPaginationDto,
 } from './dto/orders.dto';
 // import { PaginationQueryDto } from 'src/shared/dto/pagination-query.dto';
@@ -481,6 +480,11 @@ export class OrdersService {
         lte: dateFns.endOfDay(endDate),
       },
     };
+    // console.log('get orders query in service', whereObject);
+    // console.log('-----where object----');
+    // console.log(whereObject);
+    // console.log('-----date input object----');
+    // console.log({ startDate, endDate });
     try {
       const [orders, ordersCount] = await Promise.all([
         this.prisma.order.findMany({
@@ -591,13 +595,13 @@ export class OrdersService {
     }
   }
 
-  async generatePartyList(dto: GeneratePartyListDto) {
+  async generatePartyList(eventId: string) {
     console.log('----Generating party list----');
     try {
       const completedTickets = await this.prisma.ticket.findMany({
         where: {
           order: {
-            eventId: dto.eventId,
+            eventId: eventId,
             paymentStatus: 'SUCCESSFUL',
             status: 'COMPLETED',
           },
