@@ -185,7 +185,7 @@ model Event {
 
   images                  String[]      @default([])
   coverImage              String
-  location                String
+  location                String?
   locationType            LocationType? @default(VENUE)
   startTime               DateTime
   endTime                 DateTime
