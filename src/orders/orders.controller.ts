@@ -8,6 +8,8 @@ import {
   Req,
   Res,
   UseGuards,
+  UsePipes,
+  ValidationPipe,
 } from '@nestjs/common';
 import { OrdersService } from './orders.service';
 import {
@@ -17,7 +19,6 @@ import {
   GenerateOrderReportQueryDto,
   GetOrdersQuery,
   GetRevenueQueryDto,
-  GeneratePartyListDto,
   UserOrderPaginationDto,
 } from './dto/orders.dto';
 import { Roles } from 'src/auth/guards/roles.decorator';
@@ -200,12 +201,13 @@ export class OrdersController {
 
   @UseGuards(JwtAuthenticationGuard, RolesGuard)
   @Roles()
-  @Post('generate-party-list')
+  @Get('generate-party-list/:eventId')
   async generatePartyList(
     @Res() res: Response,
-    @Body() dto: GeneratePartyListDto,
+    @Param('eventId') eventId: string,
   ) {
-    const { buffer, event } = await this.ordersService.generatePartyList(dto);
+    const { buffer, event } =
+      await this.ordersService.generatePartyList(eventId);
 
     // Step 4: Send the buffer as a downloadable file
     res.setHeader(
@@ -246,6 +248,7 @@ export class OrdersController {
 
   @UseGuards(JwtAuthenticationGuard, RolesGuard)
   @Roles(UserRole.admin)
+  @UsePipes(new ValidationPipe({ transform: true }))
   @Get('get-orders')
   async getOrders(@Query() query: GetOrdersQuery) {
     return this.ordersService.getOrders(query);

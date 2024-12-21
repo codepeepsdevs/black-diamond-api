@@ -143,11 +143,11 @@ export class GetRevenueQueryDto extends DateRangeQueryDto {}
 
 export class GenerateOrderReportQueryDto extends DateRangeQueryDto {}
 
-export class GeneratePartyListDto {
-  // @IsNotEmpty({ message: 'Event to generate party list for is required' })
-  // @IsString({ message: 'Event to generate party list for is required' })
-  eventId: string;
-}
+// export class GeneratePartyListDto {
+//   @IsNotEmpty({ message: 'Event to generate party list for is required' })
+//   @IsString({ message: 'Event to generate party list for is required' })
+//   eventId: string;
+// }
 
 export class GetOrdersQuery extends DateRangeQueryDto {
   @IsOptional()

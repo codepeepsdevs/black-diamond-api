@@ -10,6 +10,17 @@
         "forwardConnectTo": "http://localhost:3000",
         "events": ["payment_intent.succeeded", "payment_intent.canceled"],
         "skipVerify": true
+      },
+      {
+        "type": "node",
+        "request": "attach",
+        "name": "Attach NestJS Debugger",
+        "port": 9230,
+        "restart": true,
+        "sourceMaps": true,
+        "protocol": "inspector",
+        "outFiles": ["${workspaceFolder}/dist/**/*.js"]
       }
+  
     ]
   }

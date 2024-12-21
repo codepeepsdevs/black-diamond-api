@@ -19,6 +19,7 @@ import { GetUsersStatsDto } from './dto/users.dto';
 import * as dateFns from 'date-fns';
 import { convertDateToNewYorkTimeInUTC } from 'src/utils/helpers';
 import * as XLSX from 'xlsx';
+import { getPagination } from 'src/utils/get-pagination';
 
 @Injectable()
 export class UsersService {
@@ -95,13 +96,7 @@ export class UsersService {
 
   async getUsers(paginationQuery: PaginationQueryDto) {
     const { page: _page, limit: _limit, search } = paginationQuery;
-    const page = Number(_page);
-    const limit = Number(_limit);
-    const skip =
-      !isNaN(page) && !isNaN(limit)
-        ? Math.abs((page - 1) * Number(limit))
-        : undefined;
-    const take = limit ? Number(limit) : undefined;
+    const { skip, take } = getPagination({ _limit, _page });
 
     const whereObject: Prisma.UserWhereInput = {
       email: {
@@ -395,13 +390,11 @@ export class UsersService {
 
   async usersStats(query: GetUsersStatsDto) {
     const { page: _page, limit: _limit } = query;
-    const page = Number(_page);
-    const limit = Number(_limit);
+    const page = parseInt(_page);
+    const limit = parseInt(_limit);
     const skip =
-      !isNaN(page) && !isNaN(limit)
-        ? Math.abs((page - 1) * Number(limit))
-        : undefined;
-    const take = limit ? Number(limit) : undefined;
+      !isNaN(page) && !isNaN(limit) ? Math.abs((page - 1) * limit) : undefined;
+    const take = limit ? limit : undefined;
 
     const users1Count = await this.prisma.user.count({
       where: {
