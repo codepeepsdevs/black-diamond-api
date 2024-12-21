@@ -102,6 +102,21 @@ export class OrdersService {
             );
 
             user = await this.userService.findOneById(payload.userId);
+
+            // if user exists and they don't have a phone number associated with their profile, take it from the checkout data
+            if (!user.phone) {
+              // Not awaited so it does not stop the order from being placed
+              this.prisma.user
+                .update({
+                  where: {
+                    id: user.id,
+                  },
+                  data: {
+                    phone: dto.phone,
+                  },
+                })
+                .catch((e) => console.error(e));
+            }
           } catch (e) {
             throw new UnauthorizedException(
               'The user session has expired, please login to place your order',
