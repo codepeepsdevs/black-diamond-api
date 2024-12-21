@@ -17,7 +17,6 @@ export class DateRangeQueryDto {
       } else {
         date = new Date(value); // Otherwise, return the supplied date
       }
-      console.log('transformed start date in dto', date);
       return date;
     },
     { toClassOnly: true },
@@ -29,7 +28,6 @@ export class DateRangeQueryDto {
   // @Type(() => Date)
   @Transform(
     ({ value }) => {
-      console.log('endDate in dto', value);
       let date: Date;
       // If value is undefined or invalid, set default to today
       if (!value || isNaN(Date.parse(value))) {

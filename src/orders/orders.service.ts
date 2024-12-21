@@ -480,11 +480,6 @@ export class OrdersService {
         lte: dateFns.endOfDay(endDate),
       },
     };
-    // console.log('get orders query in service', whereObject);
-    // console.log('-----where object----');
-    // console.log(whereObject);
-    // console.log('-----date input object----');
-    // console.log({ startDate, endDate });
     try {
       const [orders, ordersCount] = await Promise.all([
         this.prisma.order.findMany({
