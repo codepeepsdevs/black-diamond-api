@@ -823,6 +823,7 @@ export class EventsService {
     try {
       const utcStartTime = combineDateAndTime(startDate, startTime);
       const utcEndTime = combineDateAndTime(endDate, endTime);
+      const nowUTC = new Date();
 
       const copiedEvent = await this.prisma.$transaction(
         async (tx) => {
@@ -857,7 +858,7 @@ export class EventsService {
                       description: addon.description,
                       price: addon.price,
                       totalQuantity: addon.totalQuantity,
-                      startTime: utcStartTime,
+                      startTime: nowUTC,
                       endTime: utcEndTime,
                       maximumQuantityPerOrder: addon.maximumQuantityPerOrder,
                       minimumQuantityPerOrder: addon.minimumQuantityPerOrder,
@@ -897,7 +898,7 @@ export class EventsService {
                     minQty: ticketType.minQty,
                     maxQty: ticketType.maxQty,
                     eventId: eventCopy.id,
-                    startDate: utcStartTime,
+                    startDate: nowUTC,
                     endDate: utcEndTime,
                     visibility: ticketType.visibility,
                   })),
