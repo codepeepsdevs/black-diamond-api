@@ -600,7 +600,7 @@ export class OrdersService {
           Phone: order?.phone || 'N/A',
           Email: order?.email || 'N/A',
           'Ticket Order Summary': ticketOrderSummary,
-          'Amount Spent': `$${order.amountPaid.toFixed(2)}`,
+          'Amount Spent': `$${order.amountPaid?.toFixed(2)}`,
         };
       });
 
