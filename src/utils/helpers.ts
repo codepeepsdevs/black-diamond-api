@@ -1,5 +1,6 @@
 import { PromoCode } from '@prisma/client';
 import * as dateFnsTz from 'date-fns-tz';
+// import * as dateFns from 'date-fns';
 
 export const newYorkTimeZone = 'America/New_York';
 
@@ -65,7 +66,13 @@ export const combineDateAndTime = (date: Date, time: string) => {
   const [hours, minutes] = time.split(':').map((value) => Number(value));
   date.setHours(hours, minutes, 0, 0);
   const utcDate = dateFnsTz.fromZonedTime(date, newYorkTimeZone);
-
+  // const utcDate = dateFnsTz.fromZonedTime(
+  //   dateFns.add(dateFns.startOfDay(date), {
+  //     hours: hours,
+  //     minutes: minutes,
+  //   }),
+  //   newYorkTimeZone,
+  // );
   return utcDate;
 };
 
