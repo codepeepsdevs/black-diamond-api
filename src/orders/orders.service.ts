@@ -210,7 +210,7 @@ export class OrdersService {
           // validate the min and max quantity for order
           if (
             ticketType.minQty &&
-            ticketTypeOrder.quantity > 1 &&
+            ticketTypeOrder.quantity > 0 &&
             ticketTypeOrder.quantity < ticketType.minQty
           ) {
             throw new InternalServerErrorException(
@@ -600,7 +600,7 @@ export class OrdersService {
           Phone: order?.phone || 'N/A',
           Email: order?.email || 'N/A',
           'Ticket Order Summary': ticketOrderSummary,
-          'Amount Spent': `$${order.amountPaid.toFixed(2)}`,
+          'Amount Spent': `$${order.amountPaid?.toFixed(2)}`,
         };
       });
 
