@@ -4,11 +4,15 @@ import { Order, User } from '@prisma/client';
 import * as ejs from 'ejs';
 import * as fs from 'fs';
 import { FRONTEND_URL } from 'src/constants';
-import { transporter } from 'src/utils/nodemailer';
+import { EmailResendService } from './resend.service';
 
 @Injectable()
 export class EmailsService {
-  constructor(private configService: ConfigService) {}
+  private emailResendService: EmailResendService;
+
+  constructor(private configService: ConfigService) {
+    this.emailResendService = new EmailResendService(configService);
+  }
 
   async sendVerificationEmail(user: User, token: string): Promise<void> {
     const url = `${this.configService.get<string>(FRONTEND_URL)}/verify-email/${token}`;
@@ -23,20 +27,17 @@ export class EmailsService {
       confirmationLink: url,
     });
 
-    const mailOptions = {
-      from: 'BlackDiamond <support@eventsbyblackdiamond.com>',
+    const result = await this.emailResendService.sendEmail({
       to: user.email,
       subject: 'Verify Your Registration',
       html: renderedEmail,
-    };
-
-    transporter.sendMail(mailOptions, (error: any, info: any) => {
-      if (error) {
-        console.error('Error sending email:', error);
-      } else {
-        console.log('Email sent:', info.response);
-      }
     });
+
+    if (result.success) {
+      console.log('Verification email sent successfully:', result.messageId);
+    } else {
+      console.error('Error sending verification email:', result.error);
+    }
   }
 
   async sendRegistrationCompletedEmail(user: any): Promise<void> {
@@ -49,20 +50,23 @@ export class EmailsService {
       user,
     });
 
-    const mailOptions = {
-      from: 'BlackDiamond <support@eventsbyblackdiamond.com>',
+    const result = await this.emailResendService.sendEmail({
       to: user.email,
       subject: 'Registration Completed',
       html: renderedEmail,
-    };
-
-    transporter.sendMail(mailOptions, (error: any, info: any) => {
-      if (error) {
-        console.error('Error sending email:', error);
-      } else {
-        console.log('Email sent:', info.response);
-      }
     });
+
+    if (result.success) {
+      console.log(
+        'Registration completed email sent successfully:',
+        result.messageId,
+      );
+    } else {
+      console.error(
+        'Error sending registration completed email:',
+        result.error,
+      );
+    }
   }
 
   async sendWelcomeEmail(user: any): Promise<void> {
@@ -77,14 +81,17 @@ export class EmailsService {
         data: user,
       });
 
-      await transporter.sendMail({
-        from: 'BlackDiamond <support@eventsbyblackdiamond.com>',
+      const result = await this.emailResendService.sendEmail({
         to: user.email,
-        subject: 'Welcome toBlackDiamond',
+        subject: 'Welcome to BlackDiamond',
         html: renderedEmail,
       });
 
-      console.log('Welcome email sent successfully!');
+      if (result.success) {
+        console.log('Welcome email sent successfully!', result.messageId);
+      } else {
+        console.error('Error sending welcome email:', result.error);
+      }
     } catch (error) {
       console.error('Error sending welcome email:', error);
     }
@@ -133,14 +140,20 @@ export class EmailsService {
         resetLink,
       });
 
-      await transporter.sendMail({
-        from: 'BlackDiamond <support@eventsbyblackdiamond.com>',
+      const result = await this.emailResendService.sendEmail({
         to: email,
         subject: 'Password Reset Request Confirmation',
         html: renderedEmail,
       });
 
-      console.log('Password Reset Request Confirmation Successfully!');
+      if (result.success) {
+        console.log(
+          'Password Reset Request Confirmation Successfully!',
+          result.messageId,
+        );
+      } else {
+        console.error('Error sending reset password:', result.error);
+      }
     } catch (error) {
       console.error('Error sending reset password:', error);
     }
@@ -158,14 +171,20 @@ export class EmailsService {
         user,
       });
 
-      await transporter.sendMail({
-        from: 'BlackDiamond <support@eventsbyblackdiamond.com>',
+      const result = await this.emailResendService.sendEmail({
         to: email,
         subject: 'Password Successfully Changed',
         html: renderedEmail,
       });
 
-      console.log('Password changed email sent successfully!');
+      if (result.success) {
+        console.log(
+          'Password changed email sent successfully!',
+          result.messageId,
+        );
+      } else {
+        console.error('Error sending password changed email:', result.error);
+      }
     } catch (error) {
       console.error('Error sending password changed email:', error);
     }
@@ -186,14 +205,20 @@ export class EmailsService {
         completeSignupLink,
       });
 
-      await transporter.sendMail({
-        from: 'BlackDiamond <support@eventsbyblackdiamond.com>',
+      const result = await this.emailResendService.sendEmail({
         to: email,
         subject: 'Complete your signup process',
         html: renderedEmail,
       });
 
-      console.log('Complete signup email sent successfully!');
+      if (result.success) {
+        console.log(
+          'Complete signup email sent successfully!',
+          result.messageId,
+        );
+      } else {
+        console.error('Error sending complete signup email:', result.error);
+      }
     } catch (error) {
       console.error('Error sending complete signup email:', error);
     }
@@ -226,14 +251,21 @@ export class EmailsService {
 
       const renderedEmail = ejs.render(templateFile, data);
 
-      await transporter.sendMail({
-        from: 'BlackDiamond <support@eventsbyblackdiamond.com>',
+      const result = await this.emailResendService.sendEmail({
         to: email,
         subject: 'Your order payment has been confirmed! View tickets',
         html: renderedEmail,
       });
 
-      console.log('Order confirmed email sent!', data.order.id);
+      if (result.success) {
+        console.log(
+          'Order confirmed email sent!',
+          data.order.id,
+          result.messageId,
+        );
+      } else {
+        console.error('Error sending order confirmation email:', result.error);
+      }
     } catch (error) {
       console.error('Error sending order confirmation email:', error);
     }
@@ -268,14 +300,21 @@ export class EmailsService {
 
       const renderedEmail = ejs.render(templateFile, data);
 
-      await transporter.sendMail({
-        from: 'BlackDiamond <support@eventsbyblackdiamond.com>',
+      const result = await this.emailResendService.sendEmail({
         to: email,
         subject: 'Your order has been received!',
         html: renderedEmail,
       });
 
-      console.log('Order received email sent successfully!', data.order.id);
+      if (result.success) {
+        console.log(
+          'Order received email sent successfully!',
+          data.order.id,
+          result.messageId,
+        );
+      } else {
+        console.error('Error sending order received email:', result.error);
+      }
     } catch (error) {
       console.error('Error sending order received email:', error);
     }
@@ -295,23 +334,19 @@ export class EmailsService {
         data,
       });
 
-      await transporter.sendMail(
-        {
-          from: 'BlackDiamond <support@eventsbyblackdiamond.com>',
-          to: email,
-          subject: subject,
-          html: renderedEmail,
-        },
-        (error: any, info: any) => {
-          if (error) {
-            console.error('Error sending email:', error);
-          } else {
-            console.log('Email sent:', info.response);
-          }
-        },
-      );
+      const result = await this.emailResendService.sendEmail({
+        to: email,
+        subject: subject,
+        html: renderedEmail,
+      });
 
-      return { message: 'message sent' };
+      if (result.success) {
+        console.log('Dynamic email sent successfully:', result.messageId);
+        return { message: 'message sent', messageId: result.messageId };
+      } else {
+        console.error('Error sending dynamic email:', result.error);
+        throw new Error(result.error);
+      }
     } catch (error) {
       throw error;
     }
