@@ -5,7 +5,8 @@ import { ConfigService } from '@nestjs/config';
 export const resend = new Resend(process.env.RESEND_API_KEY);
 
 // Default email configuration
-export const DEFAULT_FROM_EMAIL = 'BlackDiamond <support@eventsbyblackdiamond.com>';
+export const DEFAULT_FROM_EMAIL =
+  'BlackDiamond <support@eventsbyblackdiamond.com>';
 
 // Email sending wrapper with error handling and retry logic
 export class ResendService {
@@ -14,13 +15,14 @@ export class ResendService {
 
   constructor(configService: ConfigService) {
     const apiKey = configService.get<string>('RESEND_API_KEY');
-    
+
     if (!apiKey) {
       throw new Error('RESEND_API_KEY environment variable is required');
     }
 
     this.resend = new Resend(apiKey);
-    this.defaultFrom = configService.get<string>('RESEND_FROM_EMAIL') || DEFAULT_FROM_EMAIL;
+    this.defaultFrom =
+      configService.get<string>('RESEND_FROM_EMAIL') || DEFAULT_FROM_EMAIL;
   }
 
   /**
@@ -46,7 +48,10 @@ export class ResendService {
           replyTo: options.replyTo,
         });
 
-        console.log(`Email sent successfully (attempt ${attempt}):`, result.data?.id);
+        console.log(
+          `Email sent successfully (attempt ${attempt}):`,
+          result.data?.id,
+        );
         return {
           success: true,
           messageId: result.data?.id,
@@ -64,7 +69,7 @@ export class ResendService {
         if (attempt < maxRetries) {
           const delay = Math.pow(2, attempt) * 1000; // 2s, 4s, 8s
           console.log(`Retrying in ${delay}ms...`);
-          await new Promise(resolve => setTimeout(resolve, delay));
+          await new Promise((resolve) => setTimeout(resolve, delay));
         }
       }
     }
@@ -86,9 +91,10 @@ export class ResendService {
       'unauthorized',
     ];
 
-    return nonRetryableErrors.some(errorType => 
-      error?.message?.toLowerCase().includes(errorType) ||
-      error?.name?.toLowerCase().includes(errorType)
+    return nonRetryableErrors.some(
+      (errorType) =>
+        error?.message?.toLowerCase().includes(errorType) ||
+        error?.name?.toLowerCase().includes(errorType),
     );
   }
 
