@@ -28,7 +28,12 @@ async function bootstrap() {
 
   const devOrigin =
     process.env.NODE_ENV === 'development'
-      ? ['http://localhost:3000', 'http://localhost:3001']
+      ? [
+          'http://localhost:3000',
+          'http://localhost:3001',
+          'https://zvp3vrxl-3000.eun1.devtunnels.ms',
+          'https://10.61.115.232:3443',
+        ]
       : [];
   app.enableCors({
     origin: [

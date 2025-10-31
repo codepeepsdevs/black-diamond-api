@@ -1,4 +1,4 @@
-import { IsOptional } from 'class-validator';
+import { IsOptional, IsString } from 'class-validator';
 
 export class PaginationQueryDto {
   @IsOptional()
@@ -8,5 +8,6 @@ export class PaginationQueryDto {
   limit?: number;
 
   @IsOptional()
+  @IsString()
   search?: string;
 }

@@ -10,10 +10,11 @@ import { PromoterModule } from './promoter/promoter.module';
 import { AuthenticationModule } from './auth/auth.module';
 import { EventsModule } from './events/events.module';
 import { StripeModule } from './stripe/stripe.module';
-// import { LoggerModule } from 'nestjs-pino';
+import { LoggerModule } from 'nestjs-pino';
 import { SubscriberListModule } from './subscriber-list/subscriber-list.module';
 import { SubscriberModule } from './subscriber/subscriber.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { CheckinModule } from './checkin/checkin.module';
 
 @Module({
   imports: [
@@ -39,19 +40,44 @@ import { PrismaModule } from './prisma/prisma.module';
     SubscriberListModule,
     SubscriberModule,
     PrismaModule,
+    CheckinModule,
     // ServeStaticModule.forRoot({
     //   rootPath: join(__dirname, '..', 'static'),
     // }),
-    // LoggerModule.forRoot({
-    //   pinoHttp: {
-    //     customProps: (req, res) => ({
-    //       context: 'HTTP',
-    //     }),
-    //     transport: {
-    //       target: 'pino-pretty',
-    //     },
-    //   },
-    // }),
+    LoggerModule.forRoot({
+      pinoHttp: {
+        // Pretty + color output for dev
+        transport:
+          process.env.NODE_ENV !== 'production'
+            ? {
+                target: 'pino-pretty',
+                options: {
+                  colorize: true,
+                  singleLine: false,
+                  translateTime: 'SYS:standard',
+                  ignore: 'pid,hostname',
+                },
+              }
+            : undefined,
+
+        // Auto-add request details (safe serializable form)
+        serializers: {
+          req(req) {
+            return {
+              method: req.method,
+              url: req.url,
+              params: req.params,
+              query: req.query,
+            };
+          },
+          res(res) {
+            return {
+              statusCode: res.statusCode,
+            };
+          },
+        },
+      },
+    }),
   ],
   controllers: [AppController],
   providers: [AppService],

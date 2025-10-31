@@ -8,8 +8,6 @@ import {
   Req,
   Res,
   UseGuards,
-  UsePipes,
-  ValidationPipe,
 } from '@nestjs/common';
 import { OrdersService } from './orders.service';
 import {
@@ -248,9 +246,10 @@ export class OrdersController {
 
   @UseGuards(JwtAuthenticationGuard, RolesGuard)
   @Roles(UserRole.admin)
-  @UsePipes(new ValidationPipe({ transform: true }))
+  // @UsePipes(new ValidationPipe({ transform: true }))
   @Get('get-orders')
   async getOrders(@Query() query: GetOrdersQuery) {
+    console.log('query', query);
     return this.ordersService.getOrders(query);
   }
 
