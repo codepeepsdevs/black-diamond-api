@@ -505,9 +505,10 @@ export class OrdersService {
                 }
               : undefined,
       },
+      // if startdate or enddate is not provided, don't filter by createdAt
       createdAt: {
-        gte: dateFns.startOfDay(startDate),
-        lte: dateFns.endOfDay(endDate),
+        gte: startDate ? dateFns.startOfDay(startDate) : undefined,
+        lte: endDate ? dateFns.endOfDay(endDate) : undefined,
       },
     };
     try {
