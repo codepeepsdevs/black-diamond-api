@@ -34,13 +34,13 @@ export class UsersController {
     return this.usersService.getUser(req.user.id);
   }
 
-  @Roles('admin')
+  @Roles('admin', 'viewer')
   @Get('get-users')
   async getUsers(@Query() paginationQuery: PaginationQueryDto) {
     return this.usersService.getUsers(paginationQuery);
   }
 
-  @Roles('admin')
+  @Roles('admin', 'viewer')
   @Get('users-stats')
   async usersStats(@Query() query: GetUsersStatsDto) {
     return this.usersService.usersStats(query);
@@ -75,19 +75,19 @@ export class UsersController {
     return this.usersService.changePassword(req.user.id, dto);
   }
 
-  @Roles('admin')
+  @Roles('admin', 'viewer')
   @Get('new-users-today-stats')
   async newUsersTodayStats() {
     return this.usersService.newUsersTodayStats();
   }
 
-  @Roles('admin')
+  @Roles('admin', 'viewer')
   @Get('admin-users-stats')
   async adminUsersStats() {
     return this.usersService.adminUsersStats();
   }
 
-  @Roles('admin')
+  @Roles('admin', 'viewer')
   @Get('export-to-excel')
   async exportToExcel(@Res() res: Response) {
     const buffer = await this.usersService.exportUsersToExcel();
@@ -103,3 +103,4 @@ export class UsersController {
     res.send(buffer);
   }
 }
+

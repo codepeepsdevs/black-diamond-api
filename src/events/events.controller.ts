@@ -124,14 +124,14 @@ export class EventsController {
   }
 
   @UseGuards(JwtAuthenticationGuard, RolesGuard)
-  @Roles('admin')
+  @Roles(UserRole.admin, UserRole.viewer)
   @Get('admin-get-events')
   async adminGetEvents(@Query() paginationQuery: EventsPaginationQueryDto) {
     return this.eventsService.adminGetEvents(paginationQuery);
   }
 
   @UseGuards(JwtAuthenticationGuard, RolesGuard)
-  @Roles('admin')
+  @Roles(UserRole.admin, UserRole.viewer)
   @Get(':eventId/get-ticket-types')
   async getEventTicketTypes(@Param('eventId') eventId: string) {
     return this.eventsService.getEventTicketTypes(eventId);
@@ -240,7 +240,7 @@ export class EventsController {
   }
 
   @UseGuards(JwtAuthenticationGuard, RolesGuard)
-  @Roles(UserRole.admin)
+  @Roles(UserRole.admin, UserRole.viewer)
   @Get('get-revenue/:eventId')
   async getRevenue(@Param('eventId') eventId: string) {
     return this.eventsService.getRevenue(eventId);
@@ -254,7 +254,7 @@ export class EventsController {
   }
 
   @UseGuards(JwtAuthenticationGuard, RolesGuard)
-  @Roles(UserRole.admin)
+  @Roles(UserRole.admin, UserRole.viewer)
   @Get('view-count/:eventId')
   async viewCount(@Param('eventId') eventId: string) {
     return this.eventsService.viewCount({ eventId });
