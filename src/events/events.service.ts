@@ -553,25 +553,30 @@ export class EventsService {
 
   async getEventTicketTypes(eventId: Event['id']) {
     try {
-      const ticketTypes = await this.prisma.ticketType.findMany({
-        where: {
-          eventId: eventId,
-        },
-        include: {
-          promoCodes: true,
-          _count: {
-            select: {
-              tickets: true,
-            },
-          },
-        },
-        orderBy: {
-          createdAt: 'desc',
-        },
-      });
-      const event = await this.prisma.event.findFirst({
+      const event = await this.prisma.event.findUnique({
         where: {
           id: eventId,
+        },
+        include: {
+          ticketTypes: {
+            include: {
+              promoCodes: true,
+              _count: {
+                select: {
+                  tickets: {
+                    where: {
+                      order: {
+                        paymentStatus: 'SUCCESSFUL',
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            orderBy: {
+              createdAt: 'desc',
+            },
+          },
         },
       });
 
@@ -581,7 +586,7 @@ export class EventsService {
         );
       }
 
-      const extendedTicketTypes = ticketTypes.map((ticketType) => {
+      const extendedTicketTypes = event.ticketTypes.map((ticketType) => {
         let saleStatus: 'not-on-sale' | 'on-sale' | 'sale-ended' = 'on-sale';
         if (ticketType.endDate && ticketType.startDate) {
           const nowUTC = new Date();
