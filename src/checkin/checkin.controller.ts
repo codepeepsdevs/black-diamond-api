@@ -25,6 +25,7 @@ import { UserRole } from '@prisma/client';
 export class CheckinController {
   constructor(private readonly checkinService: CheckinService) {}
 
+  @Roles(UserRole.admin, UserRole.viewer)
   @Get('ticket/code/:checkinCode')
   async getTicketByCheckinCode(@Param() params: CheckInByCodeParamDto) {
     return this.checkinService.getTicketByCheckinCode(params.checkinCode);
@@ -40,6 +41,7 @@ export class CheckinController {
     return this.checkinService.checkInById(dto);
   }
 
+  @Roles(UserRole.admin, UserRole.viewer)
   @Get('event/:eventId/tickets')
   async getTicketsForEvent(
     @Param('eventId') eventId: string,
@@ -48,6 +50,7 @@ export class CheckinController {
     return this.checkinService.getTicketsForEvent(eventId, searchQuery);
   }
 
+  @Roles(UserRole.admin, UserRole.viewer)
   @Get('event/:eventId/stats')
   async getCheckInStats(@Param('eventId') eventId: string) {
     return this.checkinService.getCheckInStats(eventId);

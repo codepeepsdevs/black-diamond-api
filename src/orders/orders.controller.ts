@@ -245,7 +245,7 @@ export class OrdersController {
   }
 
   @UseGuards(JwtAuthenticationGuard, RolesGuard)
-  @Roles(UserRole.admin)
+  @Roles(UserRole.admin, UserRole.viewer)
   // @UsePipes(new ValidationPipe({ transform: true }))
   @Get('get-orders')
   async getOrders(@Query() query: GetOrdersQuery) {
@@ -261,21 +261,21 @@ export class OrdersController {
   }
 
   @UseGuards(JwtAuthenticationGuard, RolesGuard)
-  @Roles(UserRole.admin)
+  @Roles(UserRole.admin, UserRole.viewer)
   @Get('get-revenue')
   async getRevenue(@Query() query: GetRevenueQueryDto) {
     return this.ordersService.getRevenue(query);
   }
 
   @UseGuards(JwtAuthenticationGuard, RolesGuard)
-  @Roles(UserRole.admin)
+  @Roles(UserRole.admin, UserRole.viewer)
   @Get('ticket-type-sales/:eventId')
   async getTicketTypeSales(@Param('eventId') eventId: string) {
     return this.ordersService.getTicketTypeSales(eventId);
   }
 
   @UseGuards(JwtAuthenticationGuard, RolesGuard)
-  @Roles(UserRole.admin)
+  @Roles(UserRole.admin, UserRole.viewer)
   @Get('tickets-sold-stats')
   async ticketsSoldStats(@Query() query: DateRangeQueryDto) {
     return this.ordersService.ticketsSoldStats(query);
