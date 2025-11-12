@@ -103,4 +103,3 @@ export class UsersController {
     res.send(buffer);
   }
 }
-
