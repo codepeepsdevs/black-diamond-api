@@ -30,11 +30,18 @@ import * as dateFns from 'date-fns';
 import { getPagination } from 'src/utils/get-pagination';
 import { DateRangeQueryDto } from 'src/shared/dto/date-range-query.dto';
 import { customAlphabet } from 'nanoid';
-import { getEventStatus, isTicketTypeVisible } from 'src/utils/helpers';
+import {
+  getEventStatus,
+  isTicketTypeVisible,
+  getTimeZoneDateRange,
+  newYorkTimeZone,
+} from 'src/utils/helpers';
 import { EventsService } from 'src/events/events.service';
 import * as XLSX from 'xlsx';
 import { AuthenticationService } from 'src/auth/services/auth.service';
 import { NewsletterService } from 'src/newsletter/newsletter.service';
+import { FRONTEND_URL } from 'src/constants';
+import * as dateFnsTz from 'date-fns-tz';
 
 const nanoid = customAlphabet('1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ', 12);
 
@@ -778,6 +785,73 @@ export class OrdersService {
       throw new InternalServerErrorException(
         'Something went wrong while updating payment status',
       );
+    }
+  }
+
+  async sendOrderConfirmedEmail(orderId: string): Promise<void> {
+    try {
+      // Fetch order with all necessary relations
+      const order = await this.prisma.order.findUnique({
+        where: { id: orderId },
+        include: {
+          event: true,
+          tickets: {
+            include: {
+              ticketType: true,
+            },
+          },
+          addonOrder: true,
+        },
+      });
+
+      if (!order) {
+        throw new NotFoundException('Order not found');
+      }
+
+      // Calculate ticketGroup
+      const ticketGroup: Record<
+        string,
+        {
+          name: string;
+          quantity: number;
+          price: number;
+        }
+      > = order.tickets.reduce((group, ticket) => {
+        if (group[ticket.ticketType.name]) {
+          group[ticket.ticketType.name].quantity =
+            group[ticket.ticketType.name].quantity + 1;
+        } else {
+          group[ticket.ticketType.name] = {
+            name: ticket.ticketType.name,
+            quantity: 1,
+            price: ticket.ticketType.price,
+          };
+        }
+        return group;
+      }, {});
+
+      // Format ticketLink
+      const ticketLink = `${this.configService.get(FRONTEND_URL)}/tickets/${order.id}/fill-details`;
+
+      // Send order confirmed email
+      await this.emailService.sendOrderConfirmed(order.email, {
+        order,
+        ticketLink: ticketLink,
+        eventDate: getTimeZoneDateRange(
+          new Date(order.event.startTime || Date.now()),
+          new Date(order.event.endTime || Date.now()),
+        ),
+        orderDate: dateFnsTz.format(
+          dateFnsTz.toZonedTime(order.createdAt, newYorkTimeZone),
+          'MMMM d, yyyy',
+        ),
+        ticketGroups: Object.values(ticketGroup),
+        totalDiscountInDollars: order.totalDiscount,
+        totalChargesInDollars: order.totalCharges,
+      });
+    } catch (error) {
+      console.error('Error sending order confirmed email:', error);
+      // Don't throw - email failure shouldn't break the payment flow
     }
   }
 

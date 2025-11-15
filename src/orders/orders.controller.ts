@@ -27,14 +27,14 @@ import RequestWithUser from 'src/auth/types/requestWithUser.interface';
 import { UserRole } from '@prisma/client';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import { CANCEL_URL, FRONTEND_URL, SUCCESS_URL } from 'src/constants';
+import { CANCEL_URL, SUCCESS_URL } from 'src/constants';
 import { StripeService } from 'src/stripe/stripe.service';
 import { Response } from 'express';
 import {} from 'src/events/dto/events.dto';
 import { DateRangeQueryDto } from 'src/shared/dto/date-range-query.dto';
 import { EmailsService } from 'src/emails/emails.service';
-import { getTimeZoneDateRange, newYorkTimeZone } from 'src/utils/helpers';
-import * as dateFnsTz from 'date-fns-tz';
+// import { getTimeZoneDateRange, newYorkTimeZone } from 'src/utils/helpers';
+// import * as dateFnsTz from 'date-fns-tz';
 
 @Controller('orders')
 export class OrdersController {
@@ -69,10 +69,10 @@ export class OrdersController {
 
     const {
       session,
-      totalAmount,
       bypassStripe,
       totalChargesInDollars,
       totalDiscountInDollars,
+      // totalAmount is returned but not used (was used in commented-out email code)
     } = await this.stripeService.createCheckoutSession(
       body,
       successUrl,
@@ -95,49 +95,52 @@ export class OrdersController {
         null,
         null, // convert from cent to dollarss
       );
+      // Send order confirmed email since payment is immediately successful
+      await this.ordersService.sendOrderConfirmedEmail(order.id);
     }
     // After successful order placement, send order received email
-    const ticketLink = `${this.configService.get(FRONTEND_URL)}/tickets/`; // just take them to tickets page.
+    // COMMENTED OUT: Email is now sent only when payment is completed (via webhook or bypassStripe)
+    // const ticketLink = `${this.configService.get(FRONTEND_URL)}/tickets/`; // just take them to tickets page.
 
-    const ticketGroup: Record<
-      string,
-      {
-        name: string;
-        quantity: number;
-        price: number;
-      }
-    > = order.tickets.reduce((group, ticket) => {
-      if (group[ticket.ticketType.name]) {
-        group[ticket.ticketType.name].quantity =
-          group[ticket.ticketType.name].quantity + 1;
-      } else {
-        group[ticket.ticketType.name] = {
-          name: ticket.ticketType.name,
-          quantity: 1,
-          price: ticket.ticketType.price,
-        };
-      }
-      return group;
-    }, {});
-    await this.emailService.sendOrderReceived(order.email, {
-      amountToPay: bypassStripe ? 0 : totalAmount / 100 + totalChargesInDollars, // total amount is in cents, divide by 100 to convert to dollar
-      order,
-      ticketLink: ticketLink,
-      eventDate: getTimeZoneDateRange(
-        new Date(order.event.startTime || Date.now()),
-        new Date(order.event.endTime || Date.now()),
-      ),
-      orderDate: dateFnsTz.format(
-        dateFnsTz.toZonedTime(order.createdAt, newYorkTimeZone),
-        'MMMM d, yyyy',
-        {
-          timeZone: newYorkTimeZone,
-        },
-      ),
-      ticketGroups: Object.values(ticketGroup),
-      totalChargesInDollars: bypassStripe ? 0 : totalChargesInDollars,
-      totalDiscountInDollars,
-    });
+    // const ticketGroup: Record<
+    //   string,
+    //   {
+    //     name: string;
+    //     quantity: number;
+    //     price: number;
+    //   }
+    // > = order.tickets.reduce((group, ticket) => {
+    //   if (group[ticket.ticketType.name]) {
+    //     group[ticket.ticketType.name].quantity =
+    //       group[ticket.ticketType.name].quantity + 1;
+    //   } else {
+    //     group[ticket.ticketType.name] = {
+    //       name: ticket.ticketType.name,
+    //       quantity: 1,
+    //       price: ticket.ticketType.price,
+    //     };
+    //   }
+    //   return group;
+    // }, {});
+    // await this.emailService.sendOrderReceived(order.email, {
+    //   amountToPay: bypassStripe ? 0 : totalAmount / 100 + totalChargesInDollars, // total amount is in cents, divide by 100 to convert to dollar
+    //   order,
+    //   ticketLink: ticketLink,
+    //   eventDate: getTimeZoneDateRange(
+    //     new Date(order.event.startTime || Date.now()),
+    //     new Date(order.event.endTime || Date.now()),
+    //   ),
+    //   orderDate: dateFnsTz.format(
+    //     dateFnsTz.toZonedTime(order.createdAt, newYorkTimeZone),
+    //     'MMMM d, yyyy',
+    //     {
+    //       timeZone: newYorkTimeZone,
+    //     },
+    //   ),
+    //   ticketGroups: Object.values(ticketGroup),
+    //   totalChargesInDollars: bypassStripe ? 0 : totalChargesInDollars,
+    //   totalDiscountInDollars,
+    // });
     if (bypassStripe) {
       return res
         .status(200)

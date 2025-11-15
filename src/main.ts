@@ -32,7 +32,7 @@ async function bootstrap() {
           'http://localhost:3000',
           'http://localhost:3001',
           'https://zvp3vrxl-3000.eun1.devtunnels.ms',
-          'https://10.61.115.232:3443',
+          'https://10.78.227.232:3443',
         ]
       : [];
   app.enableCors({

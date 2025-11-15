@@ -8,10 +8,6 @@ import { Controller, Post, RawBodyRequest, Req } from '@nestjs/common';
 import { StripeService } from './stripe.service';
 import { ConfigService } from '@nestjs/config';
 import { OrdersService } from 'src/orders/orders.service';
-import { EmailsService } from 'src/emails/emails.service';
-import { FRONTEND_URL } from 'src/constants';
-import { getTimeZoneDateRange, newYorkTimeZone } from 'src/utils/helpers';
-import * as dateFnsTz from 'date-fns-tz';
 
 @Controller('stripe')
 export class StripeController {
@@ -19,7 +15,6 @@ export class StripeController {
     private stripeService: StripeService,
     private readonly configService: ConfigService,
     private readonly orderService: OrdersService,
-    private readonly emailService: EmailsService,
   ) {}
 
   // @HttpCode(HttpStatus.OK)
@@ -65,50 +60,15 @@ export class StripeController {
       const orderId = event.data.object.metadata.orderId;
 
       // update payment status of order
-      const order = await this.orderService.updateOrderPaymentStatus(
+      await this.orderService.updateOrderPaymentStatus(
         orderId,
         'SUCCESSFUL',
         paymentIntent.id,
         paymentIntent.amount_received / 100, // convert from cent to dollarss
       );
 
-      const ticketGroup: Record<
-        string,
-        {
-          name: string;
-          quantity: number;
-          price: number;
-        }
-      > = order.tickets.reduce((group, ticket) => {
-        if (group[ticket.ticketType.name]) {
-          group[ticket.ticketType.name].quantity =
-            group[ticket.ticketType.name].quantity + 1;
-        } else {
-          group[ticket.ticketType.name] = {
-            name: ticket.ticketType.name,
-            quantity: 1,
-            price: ticket.ticketType.price,
-          };
-        }
-        return group;
-      }, {});
-
-      const ticketLink = `${this.configService.get(FRONTEND_URL)}/tickets/${order.id}/fill-details`; // should automatically redirect if the user has filled it before.
-      await this.emailService.sendOrderConfirmed(order.email, {
-        order,
-        ticketLink: ticketLink,
-        eventDate: getTimeZoneDateRange(
-          new Date(order.event.startTime || Date.now()),
-          new Date(order.event.endTime || Date.now()),
-        ),
-        orderDate: dateFnsTz.format(
-          dateFnsTz.toZonedTime(order.createdAt, newYorkTimeZone),
-          'MMMM d, yyyy',
-        ),
-        ticketGroups: Object.values(ticketGroup),
-        totalDiscountInDollars: order.totalDiscount,
-        totalChargesInDollars: order.totalCharges,
-      });
+      // Send order confirmed email
+      await this.orderService.sendOrderConfirmedEmail(orderId);
     }
 
     return { received: true };
