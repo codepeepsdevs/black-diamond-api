@@ -190,6 +190,9 @@ export class OrdersService {
         // dto.ticketOrders.forEach(async (ticketTypeOrder) => {
         // using for in loop because throwing error in a callback in javascript for rolling back the transaction occurs in another context
         for (const ticketTypeOrder of dto.ticketOrders) {
+          if (ticketTypeOrder.quantity < 1) {
+            continue;
+          }
           const ticketType = event.ticketTypes.find(
             (ticketType) => ticketType.id === ticketTypeOrder.ticketTypeId,
           );
@@ -236,6 +239,7 @@ export class OrdersService {
             },
           });
           const quantityAvailable = ticketType.quantity - soldQuantity;
+
           if (ticketTypeOrder.quantity > quantityAvailable) {
             throw new InternalServerErrorException(
               `Unable to place order, only ${quantityAvailable}
