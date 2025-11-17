@@ -396,7 +396,13 @@ export class EventsService {
             _count: true,
             ticketTypes: {
               include: {
-                tickets: true,
+                tickets: {
+                  where: {
+                    order: {
+                      paymentStatus: 'SUCCESSFUL',
+                    },
+                  },
+                },
               },
             },
           },
@@ -500,6 +506,14 @@ export class EventsService {
                 },
               },
             },
+            order: {
+              where: {
+                paymentStatus: 'SUCCESSFUL',
+              },
+              select: {
+                amountPaid: true,
+              },
+            },
           },
           take,
           skip,
@@ -517,15 +531,16 @@ export class EventsService {
       ]);
 
       const extendedEvents = events.map((event) => {
-        let eventGross = 0;
+        // Calculate gross from actual amounts paid, not ticket prices
+        const eventGross = event.order.reduce((sum, order) => {
+          return sum + (order.amountPaid || 0);
+        }, 0);
+
         let totalTickets = 0;
         let totalSales = 0;
         const eventStatus = getEventStatus(event.endTime);
 
         event.ticketTypes.forEach((ticketType) => {
-          eventGross =
-            eventGross + ticketType.price * ticketType.tickets.length;
-
           totalTickets = totalTickets + ticketType.quantity;
           totalSales = totalSales + ticketType.tickets.length;
         });

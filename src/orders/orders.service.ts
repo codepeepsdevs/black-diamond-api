@@ -612,7 +612,7 @@ export class OrdersService {
           Phone: order?.phone || 'N/A',
           Email: order?.email || 'N/A',
           'Ticket Order Summary': ticketOrderSummary,
-          'Amount Spent': `$${order.amountPaid?.toFixed(2)}`,
+          'Amount Spent': `${order.amountPaid?.toFixed(2)}`,
         };
       });
 
@@ -675,7 +675,7 @@ export class OrdersService {
       XLSX.utils.book_append_sheet(
         workbook,
         worksheet,
-        `${event.name}-Party List`,
+        `${event.name.substring(0, 20)}-Party List`, // limit to 31 characters plus the suffix
       );
 
       // Step 3: Write the workbook to a buffer
