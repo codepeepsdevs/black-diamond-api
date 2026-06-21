@@ -16,7 +16,6 @@ import {
   JWT_ACCESS_TOKEN_SECRET,
 } from 'src/constants';
 import { UsersService } from 'src/users/users.service';
-import { EmailsService } from 'src/emails/emails.service';
 
 @Module({
   imports: [
@@ -39,7 +38,6 @@ import { EmailsService } from 'src/emails/emails.service';
   providers: [
     UsersService,
     AuthenticationService,
-    EmailsService,
     ConfigService,
     LocalStrategy,
     JwtStrategy,

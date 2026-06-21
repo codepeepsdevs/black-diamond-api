@@ -1,11 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import { EmailResendService } from './resend.service';
 import { ConfigService } from '@nestjs/config';
+import { EmailProviderService } from './email-provider.service';
 
 @Injectable()
 export class EmailTestService {
   constructor(
-    private emailResendService: EmailResendService,
+    private emailProviderService: EmailProviderService,
     private configService: ConfigService,
   ) {}
 
@@ -16,13 +16,12 @@ export class EmailTestService {
     console.log('🧪 Testing email functionality...');
 
     try {
-      // Test basic email sending
-      const result = await this.emailResendService.sendEmail({
+      const result = await this.emailProviderService.sendEmail({
         to: 'test@example.com',
         subject: 'Test Email from BlackDiamond API',
         html: `
           <h1>Test Email</h1>
-          <p>This is a test email to verify Resend integration.</p>
+          <p>This is a test email to verify the configured email provider.</p>
           <p>If you receive this, the email service is working correctly!</p>
         `,
       });
@@ -44,7 +43,7 @@ export class EmailTestService {
     console.log('🧪 Testing template rendering...');
 
     try {
-      const result = await this.emailResendService.sendTemplatedEmail({
+      const result = await this.emailProviderService.sendTemplatedEmail({
         to: 'test@example.com',
         subject: 'Template Test Email',
         templatePath: './templates/auth/welcome.ejs',
@@ -72,10 +71,10 @@ export class EmailTestService {
    */
   async runAllTests(): Promise<void> {
     console.log('🚀 Starting email service tests...');
-    
+
     await this.testEmailSending();
     await this.testTemplateRendering();
-    
+
     console.log('🏁 Email service tests completed!');
   }
 }

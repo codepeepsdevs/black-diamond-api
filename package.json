@@ -60,7 +60,8 @@
     "stripe": "^16.9.0",
     "swagger-ui-express": "^5.0.1",
     "uuid": "^10.0.0",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "zeptomail": "^8.0.1"
   },
   "devDependencies": {
     "@nestjs/cli": "^10.0.0",

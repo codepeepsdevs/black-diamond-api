@@ -4,15 +4,14 @@ import { Order, User } from '@prisma/client';
 import * as ejs from 'ejs';
 import * as fs from 'fs';
 import { FRONTEND_URL } from 'src/constants';
-import { EmailResendService } from './resend.service';
+import { EmailProviderService } from './email-provider.service';
 
 @Injectable()
 export class EmailsService {
-  private emailResendService: EmailResendService;
-
-  constructor(private configService: ConfigService) {
-    this.emailResendService = new EmailResendService(configService);
-  }
+  constructor(
+    private configService: ConfigService,
+    private readonly emailProviderService: EmailProviderService,
+  ) {}
 
   async sendVerificationEmail(user: User, token: string): Promise<void> {
     const url = `${this.configService.get<string>(FRONTEND_URL)}/verify-email/${token}`;
@@ -27,7 +26,7 @@ export class EmailsService {
       confirmationLink: url,
     });
 
-    const result = await this.emailResendService.sendEmail({
+    const result = await this.emailProviderService.sendEmail({
       to: user.email,
       subject: 'Verify Your Registration',
       html: renderedEmail,
@@ -50,7 +49,7 @@ export class EmailsService {
       user,
     });
 
-    const result = await this.emailResendService.sendEmail({
+    const result = await this.emailProviderService.sendEmail({
       to: user.email,
       subject: 'Registration Completed',
       html: renderedEmail,
@@ -81,7 +80,7 @@ export class EmailsService {
         data: user,
       });
 
-      const result = await this.emailResendService.sendEmail({
+      const result = await this.emailProviderService.sendEmail({
         to: user.email,
         subject: 'Welcome to BlackDiamond',
         html: renderedEmail,
@@ -140,7 +139,7 @@ export class EmailsService {
         resetLink,
       });
 
-      const result = await this.emailResendService.sendEmail({
+      const result = await this.emailProviderService.sendEmail({
         to: email,
         subject: 'Password Reset Request Confirmation',
         html: renderedEmail,
@@ -171,7 +170,7 @@ export class EmailsService {
         user,
       });
 
-      const result = await this.emailResendService.sendEmail({
+      const result = await this.emailProviderService.sendEmail({
         to: email,
         subject: 'Password Successfully Changed',
         html: renderedEmail,
@@ -205,7 +204,7 @@ export class EmailsService {
         completeSignupLink,
       });
 
-      const result = await this.emailResendService.sendEmail({
+      const result = await this.emailProviderService.sendEmail({
         to: email,
         subject: 'Complete your signup process',
         html: renderedEmail,
@@ -251,7 +250,7 @@ export class EmailsService {
 
       const renderedEmail = ejs.render(templateFile, data);
 
-      const result = await this.emailResendService.sendEmail({
+      const result = await this.emailProviderService.sendEmail({
         to: email,
         subject: 'Your order payment has been confirmed! View tickets',
         html: renderedEmail,
@@ -300,7 +299,7 @@ export class EmailsService {
 
       const renderedEmail = ejs.render(templateFile, data);
 
-      const result = await this.emailResendService.sendEmail({
+      const result = await this.emailProviderService.sendEmail({
         to: email,
         subject: 'Your order has been received!',
         html: renderedEmail,
@@ -334,7 +333,7 @@ export class EmailsService {
         data,
       });
 
-      const result = await this.emailResendService.sendEmail({
+      const result = await this.emailProviderService.sendEmail({
         to: email,
         subject: subject,
         html: renderedEmail,
