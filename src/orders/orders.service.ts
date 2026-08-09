@@ -788,6 +788,40 @@ export class OrdersService {
     }
   }
 
+  /**
+   * Atomically transition an order into its paid state. A Stripe webhook may be
+   * delivered more than once, so only the request that performs this transition
+   * should run post-payment work such as sending the confirmation email.
+   */
+  async markOrderPaymentSuccessful(
+    orderId: string,
+    paymentId: string,
+    amountPaid: number,
+  ): Promise<boolean> {
+    try {
+      const { count } = await this.prisma.order.updateMany({
+        where: {
+          id: orderId,
+          paymentStatus: {
+            not: 'SUCCESSFUL',
+          },
+        },
+        data: {
+          paymentStatus: 'SUCCESSFUL',
+          paymentId,
+          amountPaid,
+        },
+      });
+
+      return count === 1;
+    } catch (e) {
+      console.log(e);
+      throw new InternalServerErrorException(
+        'Something went wrong while confirming order payment',
+      );
+    }
+  }
+
   async sendOrderConfirmedEmail(orderId: string): Promise<void> {
     try {
       // Fetch order with all necessary relations
@@ -806,6 +840,13 @@ export class OrdersService {
 
       if (!order) {
         throw new NotFoundException('Order not found');
+      }
+
+      if (order.paymentStatus !== 'SUCCESSFUL') {
+        console.warn(
+          `Skipping order confirmation email for unpaid order ${order.id}`,
+        );
+        return;
       }
 
       // Calculate ticketGroup

@@ -59,16 +59,19 @@ export class StripeController {
       const paymentIntent = event.data.object;
       const orderId = event.data.object.metadata.orderId;
 
-      // update payment status of order
-      await this.orderService.updateOrderPaymentStatus(
-        orderId,
-        'SUCCESSFUL',
-        paymentIntent.id,
-        paymentIntent.amount_received / 100, // convert from cent to dollarss
-      );
+      const paymentWasJustConfirmed =
+        await this.orderService.markOrderPaymentSuccessful(
+          orderId,
+          paymentIntent.id,
+          paymentIntent.amount_received / 100, // convert from cents to dollars
+        );
 
-      // Send order confirmed email
-      await this.orderService.sendOrderConfirmedEmail(orderId);
+      if (paymentWasJustConfirmed) {
+        // Send the confirmation only for the first successful payment transition.
+        await this.orderService.sendOrderConfirmedEmail(orderId);
+      } else {
+        console.log(`Ignoring duplicate payment webhook for order ${orderId}`);
+      }
     }
 
     return { received: true };
