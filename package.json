@@ -11,7 +11,7 @@
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug 0.0.0.0:9230 --watch",
-    "start:prod": "node dist/main",
+    "start:prod": "node dist/src/main",
     "test:mongodb": "node scripts/test-mongodb.cjs",
     "stripe:listen": "stripe listen --forward-to localhost:5000/api/stripe/webhook",
     "reconcile:stripe-orders": "ts-node scripts/reconcile-stripe-orders.ts",
