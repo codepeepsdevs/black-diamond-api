@@ -113,17 +113,10 @@ export class OrdersService {
 
             // if user exists and they don't have a phone number associated with their profile, take it from the checkout data
             if (!user.phone) {
-              // Not awaited so it does not stop the order from being placed
-              this.prisma.user
-                .update({
-                  where: {
-                    id: user.id,
-                  },
-                  data: {
-                    phone: dto.phone,
-                  },
-                })
-                .catch((e) => console.error(e));
+              await prisma.user.update({
+                where: { id: user.id },
+                data: { phone: dto.phone },
+              });
             }
           } catch (e) {
             throw new UnauthorizedException(
@@ -144,17 +137,10 @@ export class OrdersService {
             newAccount = false;
             // if user exists and they don't have a phone number associated with their profile, take it from the checkout data
             if (!userExists.phone) {
-              // Not awaited so it does not stop the order from being placed
-              this.prisma.user
-                .update({
-                  where: {
-                    id: userExists.id,
-                  },
-                  data: {
-                    phone: dto.phone,
-                  },
-                })
-                .catch((e) => console.error(e));
+              await prisma.user.update({
+                where: { id: userExists.id },
+                data: { phone: dto.phone },
+              });
             }
           } else {
             newAccount = true;
@@ -747,6 +733,7 @@ export class OrdersService {
   async generatePartyList(eventId: string) {
     console.log('----Generating party list----');
     try {
+      const event = await this.eventService.getEvent(eventId);
       const completedTickets = await this.prisma.ticket.findMany({
         where: {
           order: {
@@ -755,23 +742,14 @@ export class OrdersService {
             status: 'COMPLETED',
           },
         },
-        include: {
-          order: {
-            include: {
-              event: true,
-            },
-          },
-        },
       });
-
-      const event = completedTickets[0].order.event;
 
       const worksheetData = completedTickets.map((ticket, index) => {
         return {
           'S/N': index + 1,
           ID: ticket.id,
           'Order Date': ticket.createdAt.toDateString(),
-          'Event Name': ticket.order.event.name,
+          'Event Name': event.name,
           'Full Name': `${ticket.firstName} ${ticket.lastName}`,
           Phone: ticket?.phone || 'N/A',
           Email: ticket?.email || 'N/A',
@@ -780,7 +758,19 @@ export class OrdersService {
         };
       });
 
-      const worksheet = XLSX.utils.json_to_sheet(worksheetData);
+      const worksheet = XLSX.utils.json_to_sheet(worksheetData, {
+        header: [
+          'S/N',
+          'ID',
+          'Order Date',
+          'Event Name',
+          'Full Name',
+          'Phone',
+          'Email',
+          'Gender',
+          'Checkin Code',
+        ],
+      });
 
       // Step 2: Create a workbook and add the worksheet
       const workbook = XLSX.utils.book_new();
@@ -1116,10 +1106,8 @@ export class OrdersService {
     let upTrend = true;
 
     if (query.endDate && query.startDate) {
-      const daysDiff = dateFns.differenceInDays(query.endDate, query.startDate);
-
-      const startDate2 = dateFns.subDays(query.startDate, daysDiff || 1);
-      const endDate2 = dateFns.subMonths(query.endDate, daysDiff || 1);
+      const { startDate: startDate2, endDate: endDate2 } =
+        this.getPreviousDateRange(query.startDate, query.endDate);
 
       const orders2 = await this.prisma.order.findMany({
         where: {
@@ -1174,32 +1162,19 @@ export class OrdersService {
   }
 
   async ticketsSoldStats(query: DateRangeQueryDto) {
-    const orders1 = (await this.getOrders(query)).orders.filter(
-      (order) => order.paymentStatus === 'SUCCESSFUL',
+    const ticketsSold1 = await this.getPaidTicketCount(
+      query.startDate,
+      query.endDate,
     );
-    const ticketsSold1 =
-      orders1?.reduce((accValue, order) => {
-        return accValue + order.tickets.length;
-      }, 0) || 0;
 
     let upTrend = true;
     if (query.endDate && query.startDate) {
-      const daysDiff = dateFns.differenceInDays(query.endDate, query.startDate);
-
-      const startDate2 = dateFns.subDays(query.startDate, daysDiff || 1);
-      const endDate2 = dateFns.subMonths(query.endDate, daysDiff || 1);
-
-      const orders2 = (
-        await this.getOrders({
-          endDate: endDate2,
-          startDate: startDate2,
-        })
-      ).orders.filter((order) => order.paymentStatus === 'SUCCESSFUL');
-
-      const ticketsSold2 =
-        orders2?.reduce((accValue, order) => {
-          return accValue + order.tickets.length;
-        }, 0) || 0;
+      const { startDate: startDate2, endDate: endDate2 } =
+        this.getPreviousDateRange(query.startDate, query.endDate);
+      const ticketsSold2 = await this.getPaidTicketCount(
+        startDate2,
+        endDate2,
+      );
 
       upTrend = ticketsSold1 > ticketsSold2 ? true : false;
     }
@@ -1208,6 +1183,30 @@ export class OrdersService {
       ticketsSold: ticketsSold1,
       upTrend,
     };
+  }
+
+  private getPreviousDateRange(startDate: Date, endDate: Date) {
+    const intervalInMilliseconds = endDate.getTime() - startDate.getTime();
+    const previousEndDate = dateFns.subMilliseconds(startDate, 1);
+
+    return {
+      startDate: dateFns.subMilliseconds(
+        previousEndDate,
+        intervalInMilliseconds,
+      ),
+      endDate: previousEndDate,
+    };
+  }
+
+  private getPaidTicketCount(startDate?: Date, endDate?: Date) {
+    return this.prisma.ticket.count({
+      where: {
+        order: {
+          paymentStatus: 'SUCCESSFUL',
+          createdAt: { gte: startDate, lte: endDate },
+        },
+      },
+    });
   }
 
   // async generateCheckinCode(count: number = 0): Promise<string | false> {
