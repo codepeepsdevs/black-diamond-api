@@ -19,7 +19,10 @@ import {
 } from './dto/orders.dto';
 // import { PaginationQueryDto } from 'src/shared/dto/pagination-query.dto';
 import { Order, Prisma, TicketType, User, UserRole } from '@prisma/client';
-import { StripeService } from 'src/stripe/stripe.service';
+import {
+  CheckoutPaymentDetails,
+  StripeService,
+} from 'src/stripe/stripe.service';
 import { EmailsService } from 'src/emails/emails.service';
 import { ConfigService } from '@nestjs/config';
 import { JWT_ACCESS_TOKEN_SECRET } from 'src/constants';
@@ -45,6 +48,7 @@ import { FRONTEND_URL } from 'src/constants';
 import * as dateFnsTz from 'date-fns-tz';
 
 const nanoid = customAlphabet('1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ', 12);
+const administrativeRoles: UserRole[] = [UserRole.admin, UserRole.viewer];
 
 @Injectable()
 export class OrdersService {
@@ -580,9 +584,7 @@ export class OrdersService {
       throw new NotFoundException('Order not found');
     }
 
-    const canManageOrders = [UserRole.admin, UserRole.viewer].includes(
-      requester.role,
-    );
+    const canManageOrders = administrativeRoles.includes(requester.role);
     if (!canManageOrders && order.userId !== requester.id) {
       throw new ForbiddenException('You cannot access this order');
     }
@@ -777,7 +779,7 @@ export class OrdersService {
       XLSX.utils.book_append_sheet(
         workbook,
         worksheet,
-        `${event.name.substring(0, 20)}-Party List`, // limit to 31 characters plus the suffix
+        this.getWorksheetName(event.name),
       );
 
       // Step 3: Write the workbook to a buffer
@@ -803,9 +805,7 @@ export class OrdersService {
     if (!order) {
       throw new NotFoundException('Order not found');
     }
-    const canManageOrders = [UserRole.admin, UserRole.viewer].includes(
-      requester.role,
-    );
+    const canManageOrders = administrativeRoles.includes(requester.role);
     if (!canManageOrders && order.userId !== requester.id) {
       throw new ForbiddenException('You cannot update this order');
     }
@@ -902,6 +902,7 @@ export class OrdersService {
           paymentStatus: status,
           paymentId: paymentId,
           amountPaid: amountPaid,
+          paidAt: status === 'SUCCESSFUL' ? new Date() : undefined,
         },
         include: {
           event: true,
@@ -927,23 +928,23 @@ export class OrdersService {
    * delivered more than once, so only the request that performs this transition
    * should run post-payment work such as sending the confirmation email.
    */
-  async markOrderPaymentSuccessful(
-    orderId: string,
-    paymentId: string,
-    amountPaid: number,
+  async confirmCheckoutSessionPayment(
+    payment: CheckoutPaymentDetails,
   ): Promise<boolean> {
     try {
       const { count } = await this.prisma.order.updateMany({
         where: {
-          id: orderId,
+          id: payment.orderId,
+          sessionId: payment.sessionId,
           paymentStatus: {
             not: 'SUCCESSFUL',
           },
         },
         data: {
           paymentStatus: 'SUCCESSFUL',
-          paymentId,
-          amountPaid,
+          paymentId: payment.paymentId,
+          amountPaid: payment.amountPaid,
+          paidAt: payment.paidAt,
         },
       });
 
@@ -1062,15 +1063,13 @@ export class OrdersService {
     if (!order.sessionId) {
       return { paid: false, message: 'Order has not been paid for' };
     }
-    const paymentStatus = await this.stripeService.checkPaymentStatus(
+    const payment = await this.stripeService.getPaidCheckoutSession(
       order.sessionId,
     );
-    if (paymentStatus.paid === true) {
-      const paymentWasJustConfirmed = await this.markOrderPaymentSuccessful(
-          order.id,
-          paymentStatus.paymendId,
-          paymentStatus.amount,
-        );
+    if (payment && payment.orderId === order.id) {
+      const paymentWasJustConfirmed = await this.confirmCheckoutSessionPayment(
+        payment,
+      );
       if (paymentWasJustConfirmed) {
         await this.sendOrderConfirmedEmail(order.id);
       }
@@ -1089,10 +1088,13 @@ export class OrdersService {
   async getRevenue(query: GetRevenueQueryDto) {
     const orders1 = await this.prisma.order.findMany({
       where: {
-        createdAt: {
-          gte: query.startDate,
-          lte: query.endDate,
-        },
+        OR: [
+          { paidAt: { gte: query.startDate, lte: query.endDate } },
+          {
+            paidAt: null,
+            createdAt: { gte: query.startDate, lte: query.endDate },
+          },
+        ],
         paymentStatus: 'SUCCESSFUL',
       },
     });
@@ -1207,6 +1209,16 @@ export class OrdersService {
         },
       },
     });
+  }
+
+  private getWorksheetName(eventName: string): string {
+    const suffix = '-Party List';
+    const safeName = eventName
+      .replace(/[\\/*?:\[\]]/g, ' ')
+      .replace(/[\r\n]/g, ' ')
+      .trim();
+
+    return `${(safeName || 'Party').slice(0, 31 - suffix.length)}${suffix}`;
   }
 
   // async generateCheckinCode(count: number = 0): Promise<string | false> {

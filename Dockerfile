@@ -6,9 +6,9 @@ WORKDIR /app
 # Copy Prisma configuration
 COPY prisma ./
 
-# Copy package.json and install dependencies
-COPY package.json ./
-RUN yarn
+# Copy dependency manifests and install the locked dependency graph
+COPY package.json yarn.lock ./
+RUN yarn install --frozen-lockfile --non-interactive
 
 # Copy the entire project into the container
 COPY . .

@@ -94,7 +94,7 @@ export class OrdersController {
         order.id,
         'SUCCESSFUL',
         null,
-        null, // convert from cent to dollarss
+        0,
       );
       // Send order confirmed email since payment is immediately successful
       await this.ordersService.sendOrderConfirmedEmail(order.id);
@@ -217,7 +217,7 @@ export class OrdersController {
     // Step 4: Send the buffer as a downloadable file
     res.setHeader(
       'Content-Disposition',
-      `attachment; filename="${event.name}-Party List.xlsx"`,
+      this.getDownloadContentDisposition(`${event.name}-Party List.xlsx`),
     );
     res.setHeader(
       'Content-Type',
@@ -316,5 +316,24 @@ export class OrdersController {
     }
 
     return parsedUrl.toString();
+  }
+
+  private getDownloadContentDisposition(filename: string): string {
+    const fallbackName = filename
+      .normalize('NFKD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^\x20-\x7E]/g, '')
+      .replace(/[<>:"/\\|?*\r\n]/g, '-')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 120);
+    const safeFallbackName = fallbackName || 'party-list.xlsx';
+    const encodedFilename = encodeURIComponent(filename)
+      .replace(/['()]/g, (character) =>
+        `%${character.charCodeAt(0).toString(16).toUpperCase()}`,
+      )
+      .replace(/\*/g, '%2A');
+
+    return `attachment; filename="${safeFallbackName}"; filename*=UTF-8''${encodedFilename}`;
   }
 }

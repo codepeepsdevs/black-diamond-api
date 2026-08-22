@@ -6,6 +6,14 @@ import { CreateOrderDto } from 'src/orders/dto/orders.dto';
 import { getDiscountedPrice } from 'src/utils/helpers';
 import Stripe from 'stripe';
 
+export type CheckoutPaymentDetails = {
+  sessionId: string;
+  orderId: string;
+  paymentId: string;
+  amountPaid: number;
+  paidAt: Date;
+};
+
 @Injectable()
 export class StripeService {
   private stripe: Stripe;
@@ -301,26 +309,42 @@ export class StripeService {
     );
   }
 
-  async checkPaymentStatus(sessionId: string) {
+  async getPaidCheckoutSession(
+    sessionId: string,
+  ): Promise<CheckoutPaymentDetails | null> {
     try {
-      // Retrieve the session using the session ID
-      const session = await this.stripe.checkout.sessions.retrieve(sessionId);
+      const session = await this.stripe.checkout.sessions.retrieve(sessionId, {
+        expand: ['payment_intent.latest_charge'],
+      });
+      const paymentIntent = session.payment_intent;
+      const orderId = session.metadata?.orderId;
 
-      // Check the payment status
-      if (session.payment_status === 'paid') {
-        console.log('Payment is completed!');
-        return {
-          paid: true,
-          amount: session.amount_total,
-          paymendId: session.payment_intent.toString(),
-        };
-      } else {
-        console.log(
-          'Payment is not completed yet. Status:',
-          session.payment_status,
-        );
-        return { paid: false };
+      if (
+        session.mode !== 'payment' ||
+        session.payment_status !== 'paid' ||
+        !orderId ||
+        !paymentIntent ||
+        session.amount_total === null
+      ) {
+        return null;
       }
+
+      const paymentId =
+        typeof paymentIntent === 'string' ? paymentIntent : paymentIntent.id;
+      const latestCharge =
+        typeof paymentIntent === 'string' ? null : paymentIntent.latest_charge;
+      const paidAt =
+        typeof latestCharge === 'object' && latestCharge?.created
+          ? new Date(latestCharge.created * 1000)
+          : new Date();
+
+      return {
+        sessionId: session.id,
+        orderId,
+        paymentId,
+        amountPaid: session.amount_total / 100,
+        paidAt,
+      };
     } catch (error) {
       console.log(error);
       throw new InternalServerErrorException(

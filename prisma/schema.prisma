@@ -265,6 +265,7 @@ model Order {
   paymentStatus PaymentStatus @default(PENDING)
   paymentId     String?
   amountPaid    Float?        @default(0)
+  paidAt        DateTime?
   totalDiscount Float?        @default(0)
   totalCharges  Float?        @default(0)
   sessionId     String?

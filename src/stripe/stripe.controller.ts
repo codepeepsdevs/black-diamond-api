@@ -4,6 +4,7 @@
 // export class StripeController {}
 
 import { Controller, Post, RawBodyRequest, Req } from '@nestjs/common';
+import Stripe from 'stripe';
 
 import { StripeService } from './stripe.service';
 import { ConfigService } from '@nestjs/config';
@@ -54,23 +55,29 @@ export class StripeController {
     const signature = request.headers['stripe-signature'];
     const event = this.stripeService.constructEvent(request.rawBody, signature);
 
-    if (event.type === 'payment_intent.succeeded') {
-      console.log('----------webhook called------------');
-      const paymentIntent = event.data.object;
-      const orderId = event.data.object.metadata.orderId;
+    if (event.type === 'checkout.session.completed') {
+      const checkoutSession = event.data.object as Stripe.Checkout.Session;
+      const payment = await this.stripeService.getPaidCheckoutSession(
+        checkoutSession.id,
+      );
+
+      if (!payment) {
+        console.warn(
+          `Ignoring unpaid or invalid Checkout Session webhook ${event.id}`,
+        );
+        return { received: true };
+      }
 
       const paymentWasJustConfirmed =
-        await this.orderService.markOrderPaymentSuccessful(
-          orderId,
-          paymentIntent.id,
-          paymentIntent.amount_received / 100, // convert from cents to dollars
+        await this.orderService.confirmCheckoutSessionPayment(
+          payment,
         );
 
       if (paymentWasJustConfirmed) {
         // Send the confirmation only for the first successful payment transition.
-        await this.orderService.sendOrderConfirmedEmail(orderId);
+        await this.orderService.sendOrderConfirmedEmail(payment.orderId);
       } else {
-        console.log(`Ignoring duplicate payment webhook for order ${orderId}`);
+        console.log(`Ignoring duplicate payment webhook ${event.id}`);
       }
     }
 
