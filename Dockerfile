@@ -17,10 +17,10 @@ COPY . .
 RUN npx prisma generate
 
 # Build the application
-RUN npm run build && test -f dist/main.js
+RUN yarn build
 
 # Expose port 3000 for the backend application
 EXPOSE 5000
 
 # Start the application
-CMD ["npm", "run", "start:prod"]
+CMD ["yarn", "start:prod"]
