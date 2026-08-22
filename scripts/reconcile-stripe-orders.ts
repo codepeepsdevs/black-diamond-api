@@ -5,6 +5,7 @@ import Stripe from 'stripe';
 dotenv.config();
 
 const apply = process.argv.includes('--apply');
+const verbose = process.argv.includes('--verbose');
 if (apply && process.env.CONFIRM_RECONCILIATION !== 'apply') {
   throw new Error(
     'Refusing to write. Set CONFIRM_RECONCILIATION=apply and pass --apply after reviewing the dry-run output.',
@@ -67,6 +68,7 @@ async function getPaymentDetails(sessionId: string, orderId: string) {
 }
 
 async function reconcile() {
+  console.error('Connecting to MongoDB and loading successful platform orders.');
   const orders = await prisma.order.findMany({
     where: {
       paymentStatus: PaymentStatus.SUCCESSFUL,
@@ -81,15 +83,27 @@ async function reconcile() {
     },
   });
   const report: ReconciliationRow[] = [];
+  let verifiedCount = 0;
+  let skippedCount = 0;
+  let correctionCount = 0;
 
   console.error(
     `Starting ${apply ? 'apply' : 'dry-run'} reconciliation for ${orders.length} paid orders with Checkout Session IDs.`,
+  );
+  console.error(
+    'Each order is checked against its saved Stripe Checkout Session. Only a paid session whose metadata references the same order is eligible for correction.',
   );
 
   for (const [index, order] of orders.entries()) {
     try {
       const payment = await getPaymentDetails(order.sessionId, order.id);
       if (!payment) {
+        skippedCount += 1;
+        if (verbose) {
+          console.error(
+            `Skipped order ${order.id}: its Stripe Checkout Session did not verify against this platform order.`,
+          );
+        }
         report.push({
           orderId: order.id,
           sessionId: order.sessionId,
@@ -105,6 +119,8 @@ async function reconcile() {
         order.amountPaid !== payment.amountPaid ||
         order.paymentId !== payment.paymentId ||
         !order.paidAt;
+      verifiedCount += 1;
+      if (changed) correctionCount += 1;
       if (apply && changed) {
         await prisma.order.update({
           where: { id: order.id },
@@ -130,6 +146,12 @@ async function reconcile() {
         changed,
       });
     } catch (error) {
+      skippedCount += 1;
+      if (verbose) {
+        console.error(
+          `Skipped order ${order.id}: ${error instanceof Error ? error.message : 'Stripe lookup failed'}.`,
+        );
+      }
       report.push({
         orderId: order.id,
         sessionId: order.sessionId,
@@ -141,7 +163,9 @@ async function reconcile() {
     }
 
     if ((index + 1) % 25 === 0 || index + 1 === orders.length) {
-      console.error(`Processed ${index + 1}/${orders.length} orders.`);
+      console.error(
+        `Processed ${index + 1}/${orders.length}: ${verifiedCount} verified, ${skippedCount} skipped, ${correctionCount} ${apply ? 'corrected or pending correction' : 'would be corrected'}.`,
+      );
     }
   }
 
@@ -172,10 +196,8 @@ async function reconcile() {
     );
   }
 
-  const verified = report.filter((row) => row.status === 'verified').length;
-  const changed = report.filter((row) => row.changed).length;
   console.error(
-    `Reconciliation ${apply ? 'applied' : 'dry run'} complete: ${verified} verified, ${changed} ${apply ? 'corrected' : 'would be corrected'}, ${report.length - verified} skipped.`,
+    `Reconciliation ${apply ? 'apply' : 'dry run'} complete: ${verifiedCount} verified, ${correctionCount} ${apply ? 'corrected' : 'would be corrected'}, ${skippedCount} skipped. Review the CSV before running with --apply.`,
   );
 }
 
