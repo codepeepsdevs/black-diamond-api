@@ -329,8 +329,9 @@ export class OrdersController {
       .slice(0, 120);
     const safeFallbackName = fallbackName || 'party-list.xlsx';
     const encodedFilename = encodeURIComponent(filename)
-      .replace(/['()]/g, (character) =>
-        `%${character.charCodeAt(0).toString(16).toUpperCase()}`,
+      .replace(
+        /['()]/g,
+        (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`,
       )
       .replace(/\*/g, '%2A');
 
