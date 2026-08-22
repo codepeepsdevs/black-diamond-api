@@ -6,6 +6,13 @@ dotenv.config();
 
 const apply = process.argv.includes('--apply');
 const verbose = process.argv.includes('--verbose');
+const requestedConcurrency = Number(
+  process.env.RECONCILIATION_CONCURRENCY || 10,
+);
+const concurrency = Math.min(
+  25,
+  Math.max(1, Number.isFinite(requestedConcurrency) ? requestedConcurrency : 10),
+);
 if (apply && process.env.CONFIRM_RECONCILIATION !== 'apply') {
   throw new Error(
     'Refusing to write. Set CONFIRM_RECONCILIATION=apply and pass --apply after reviewing the dry-run output.',
@@ -29,6 +36,14 @@ type ReconciliationRow = {
   databaseAmount: number;
   stripeAmount?: number;
   changed: boolean;
+};
+
+type ReconciliationOrder = {
+  id: string;
+  sessionId: string;
+  paymentId: string | null;
+  amountPaid: number | null;
+  paidAt: Date | null;
 };
 
 function csvValue(value: string | number | boolean | undefined) {
@@ -67,8 +82,76 @@ async function getPaymentDetails(sessionId: string, orderId: string) {
   };
 }
 
+async function reconcileOrder(
+  order: ReconciliationOrder,
+): Promise<ReconciliationRow> {
+  try {
+    const payment = await getPaymentDetails(order.sessionId, order.id);
+    if (!payment) {
+      if (verbose) {
+        console.error(
+          `Skipped order ${order.id}: its Stripe Checkout Session did not verify against this platform order.`,
+        );
+      }
+      return {
+        orderId: order.id,
+        sessionId: order.sessionId,
+        status: 'skipped',
+        reason: 'Stripe Session does not match this paid platform order',
+        databaseAmount: order.amountPaid || 0,
+        changed: false,
+      };
+    }
+
+    const changed =
+      order.amountPaid !== payment.amountPaid ||
+      order.paymentId !== payment.paymentId ||
+      !order.paidAt;
+    if (apply && changed) {
+      await prisma.order.update({
+        where: { id: order.id },
+        data: {
+          amountPaid: payment.amountPaid,
+          paymentId: payment.paymentId,
+          paidAt: payment.paidAt,
+        },
+      });
+    }
+
+    return {
+      orderId: order.id,
+      sessionId: order.sessionId,
+      status: 'verified',
+      reason: changed
+        ? apply
+          ? 'corrected'
+          : 'would correct'
+        : 'already correct',
+      databaseAmount: order.amountPaid || 0,
+      stripeAmount: payment.amountPaid,
+      changed,
+    };
+  } catch (error) {
+    const reason =
+      error instanceof Error ? error.message : 'Stripe lookup failed';
+    if (verbose) {
+      console.error(`Skipped order ${order.id}: ${reason}.`);
+    }
+    return {
+      orderId: order.id,
+      sessionId: order.sessionId,
+      status: 'skipped',
+      reason,
+      databaseAmount: order.amountPaid || 0,
+      changed: false,
+    };
+  }
+}
+
 async function reconcile() {
-  console.error('Connecting to MongoDB and loading successful platform orders.');
+  console.error(
+    'Connecting to MongoDB and loading successful platform orders.',
+  );
   const orders = await prisma.order.findMany({
     where: {
       paymentStatus: PaymentStatus.SUCCESSFUL,
@@ -82,7 +165,7 @@ async function reconcile() {
       paidAt: true,
     },
   });
-  const report: ReconciliationRow[] = [];
+  const report: ReconciliationRow[] = new Array(orders.length);
   let verifiedCount = 0;
   let skippedCount = 0;
   let correctionCount = 0;
@@ -91,83 +174,34 @@ async function reconcile() {
     `Starting ${apply ? 'apply' : 'dry-run'} reconciliation for ${orders.length} paid orders with Checkout Session IDs.`,
   );
   console.error(
+    `Using ${concurrency} concurrent Stripe lookups (set RECONCILIATION_CONCURRENCY to adjust, maximum 25).`,
+  );
+  console.error(
     'Each order is checked against its saved Stripe Checkout Session. Only a paid session whose metadata references the same order is eligible for correction.',
   );
 
-  for (const [index, order] of orders.entries()) {
-    try {
-      const payment = await getPaymentDetails(order.sessionId, order.id);
-      if (!payment) {
-        skippedCount += 1;
-        if (verbose) {
+  let nextOrderIndex = 0;
+  let processedCount = 0;
+  const workers = Array.from({ length: Math.min(concurrency, orders.length) }, () =>
+    (async () => {
+      while (nextOrderIndex < orders.length) {
+        const index = nextOrderIndex++;
+        const row = await reconcileOrder(orders[index]);
+        report[index] = row;
+        processedCount += 1;
+        if (row.status === 'verified') verifiedCount += 1;
+        else skippedCount += 1;
+        if (row.changed) correctionCount += 1;
+
+        if (processedCount % 25 === 0 || processedCount === orders.length) {
           console.error(
-            `Skipped order ${order.id}: its Stripe Checkout Session did not verify against this platform order.`,
+            `Processed ${processedCount}/${orders.length}: ${verifiedCount} verified, ${skippedCount} skipped, ${correctionCount} ${apply ? 'corrected or pending correction' : 'would be corrected'}.`,
           );
         }
-        report.push({
-          orderId: order.id,
-          sessionId: order.sessionId,
-          status: 'skipped',
-          reason: 'Stripe Session does not match this paid platform order',
-          databaseAmount: order.amountPaid || 0,
-          changed: false,
-        });
-        continue;
       }
-
-      const changed =
-        order.amountPaid !== payment.amountPaid ||
-        order.paymentId !== payment.paymentId ||
-        !order.paidAt;
-      verifiedCount += 1;
-      if (changed) correctionCount += 1;
-      if (apply && changed) {
-        await prisma.order.update({
-          where: { id: order.id },
-          data: {
-            amountPaid: payment.amountPaid,
-            paymentId: payment.paymentId,
-            paidAt: payment.paidAt,
-          },
-        });
-      }
-
-      report.push({
-        orderId: order.id,
-        sessionId: order.sessionId,
-        status: 'verified',
-        reason: changed
-          ? apply
-            ? 'corrected'
-            : 'would correct'
-          : 'already correct',
-        databaseAmount: order.amountPaid || 0,
-        stripeAmount: payment.amountPaid,
-        changed,
-      });
-    } catch (error) {
-      skippedCount += 1;
-      if (verbose) {
-        console.error(
-          `Skipped order ${order.id}: ${error instanceof Error ? error.message : 'Stripe lookup failed'}.`,
-        );
-      }
-      report.push({
-        orderId: order.id,
-        sessionId: order.sessionId,
-        status: 'skipped',
-        reason: error instanceof Error ? error.message : 'Stripe lookup failed',
-        databaseAmount: order.amountPaid || 0,
-        changed: false,
-      });
-    }
-
-    if ((index + 1) % 25 === 0 || index + 1 === orders.length) {
-      console.error(
-        `Processed ${index + 1}/${orders.length}: ${verifiedCount} verified, ${skippedCount} skipped, ${correctionCount} ${apply ? 'corrected or pending correction' : 'would be corrected'}.`,
-      );
-    }
-  }
+    })(),
+  );
+  await Promise.all(workers);
 
   console.log(
     [
