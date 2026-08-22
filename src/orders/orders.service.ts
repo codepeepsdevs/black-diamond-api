@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   HttpException,
   HttpStatus,
   Injectable,
@@ -17,7 +18,7 @@ import {
   UserOrderPaginationDto,
 } from './dto/orders.dto';
 // import { PaginationQueryDto } from 'src/shared/dto/pagination-query.dto';
-import { Order, Prisma, TicketType, User } from '@prisma/client';
+import { Order, Prisma, TicketType, User, UserRole } from '@prisma/client';
 import { StripeService } from 'src/stripe/stripe.service';
 import { EmailsService } from 'src/emails/emails.service';
 import { ConfigService } from '@nestjs/config';
@@ -91,7 +92,7 @@ export class OrdersService {
     > = null;
     if (dto.promocodeId) {
       promocode = await this.eventService.getPromocodeById(dto.promocodeId);
-      if (!promocode.isActive) {
+      if (!promocode.isActive || promocode.eventId !== dto.eventId) {
         throw new InternalServerErrorException('Promocode is expired');
       }
     }
@@ -191,18 +192,60 @@ export class OrdersService {
           }
         }
 
+        if (promocode) {
+          const now = new Date();
+          const activePromoReservations = await prisma.order.count({
+            where: {
+              promocodeId: promocode.id,
+              OR: [
+                { paymentStatus: 'SUCCESSFUL' },
+                {
+                  paymentStatus: 'PENDING',
+                  createdAt: { gte: dateFns.subMinutes(now, 30) },
+                },
+              ],
+            },
+          });
+          if (
+            activePromoReservations >= promocode.limit ||
+            now < promocode.promoStartDate ||
+            now >= promocode.promoEndDate
+          ) {
+            throw new BadRequestException('Promocode is no longer active');
+          }
+          // All checkouts using this code write the same record. MongoDB will
+          // abort a competing transaction instead of allowing both to reserve
+          // the final redemption.
+          await prisma.promoCode.update({
+            where: { id: promocode.id },
+            data: { updatedAt: now },
+          });
+        }
+
         const allTicketOrders: { ticketTypeId: string }[] = [];
         const addonsOrders: { addonId: string; quantity: number }[] = [];
+        const groupedTicketOrders = new Map<string, number>();
 
-        // dto.ticketOrders.forEach(async (ticketTypeOrder) => {
-        // using for in loop because throwing error in a callback in javascript for rolling back the transaction occurs in another context
         for (const ticketTypeOrder of dto.ticketOrders) {
-          if (ticketTypeOrder.quantity < 1) {
-            continue;
+          if (ticketTypeOrder.quantity < 0) {
+            throw new BadRequestException('Ticket quantities cannot be negative');
           }
+          if (ticketTypeOrder.quantity > 0) {
+            groupedTicketOrders.set(
+              ticketTypeOrder.ticketTypeId,
+              (groupedTicketOrders.get(ticketTypeOrder.ticketTypeId) || 0) +
+                ticketTypeOrder.quantity,
+            );
+          }
+        }
+
+        for (const [ticketTypeId, quantity] of groupedTicketOrders) {
           const ticketType = event.ticketTypes.find(
-            (ticketType) => ticketType.id === ticketTypeOrder.ticketTypeId,
+            (ticketType) => ticketType.id === ticketTypeId,
           );
+          if (!ticketType) {
+            throw new BadRequestException('Ticket order is invalid');
+          }
           // check if the ticket is in the time frame for sale
           let shouldSell = true;
           if (
@@ -220,8 +263,7 @@ export class OrdersService {
           // validate the min and max quantity for order
           if (
             ticketType.minQty &&
-            ticketTypeOrder.quantity > 0 &&
-            ticketTypeOrder.quantity < ticketType.minQty
+            quantity < ticketType.minQty
           ) {
             throw new InternalServerErrorException(
               `Please select a minimum of ${ticketType.minQty} tickets`,
@@ -229,37 +271,49 @@ export class OrdersService {
           }
           if (
             ticketType.maxQty &&
-            ticketTypeOrder.quantity > ticketType.maxQty
+            quantity > ticketType.maxQty
           ) {
             throw new InternalServerErrorException(
               `Please select a maximum of ${ticketType.maxQty} tickets`,
             );
           }
           // get the number of tickets for a tickettype of this event that has already been successfully paid for
-          const soldQuantity = await this.prisma.ticket.count({
+          const soldQuantity = await prisma.ticket.count({
             where: {
-              ticketTypeId: ticketTypeOrder.ticketTypeId,
+              ticketTypeId,
               order: {
-                paymentStatus: 'SUCCESSFUL',
                 eventId: dto.eventId,
+                OR: [
+                  { paymentStatus: 'SUCCESSFUL' },
+                  {
+                    paymentStatus: 'PENDING',
+                    createdAt: { gte: dateFns.subMinutes(new Date(), 30) },
+                  },
+                ],
               },
             },
           });
           const quantityAvailable = ticketType.quantity - soldQuantity;
 
-          if (ticketTypeOrder.quantity > quantityAvailable) {
+          if (quantity > quantityAvailable) {
             throw new InternalServerErrorException(
               `Unable to place order, only ${quantityAvailable}
                slot(s) are available for ${ticketType.name} ticket type, please go back and edit your order`,
             );
           }
-          for (let i = 0; i < ticketTypeOrder.quantity; i++) {
+          // Serialize capacity checks for this ticket type. A concurrent
+          // checkout modifies this same record, so MongoDB rejects one of the
+          // conflicting transactions rather than overselling inventory.
+          await prisma.ticketType.update({
+            where: { id: ticketType.id },
+            data: { updatedAt: new Date() },
+          });
+          for (let i = 0; i < quantity; i++) {
             allTicketOrders.push({
-              ticketTypeId: ticketTypeOrder.ticketTypeId,
+              ticketTypeId,
             });
           }
         }
-        // });
 
         if (allTicketOrders.length < 1) {
           throw new BadRequestException(
@@ -268,11 +322,59 @@ export class OrdersService {
         }
 
         if (dto.addonOrders) {
-          dto.addonOrders.forEach((addonOrder) => {
-            if (addonOrder.quantity > 0) {
-              addonsOrders.push(addonOrder);
+          for (const addonOrder of dto.addonOrders) {
+            if (addonOrder.quantity < 0) {
+              throw new BadRequestException('Add-on quantities cannot be negative');
             }
-          });
+            if (addonOrder.quantity === 0) continue;
+
+            const addon = event.addons.find(
+              ({ id }) => id === addonOrder.addonId,
+            );
+            if (!addon) {
+              throw new BadRequestException('Add-on order is invalid');
+            }
+            const now = new Date();
+            if (now < addon.startTime || now >= addon.endTime) {
+              throw new BadRequestException(`${addon.name} is not currently for sale`);
+            }
+            if (
+              addonOrder.quantity < addon.minimumQuantityPerOrder ||
+              addonOrder.quantity > addon.maximumQuantityPerOrder
+            ) {
+              throw new BadRequestException(
+                `${addon.name} quantity must be between ${addon.minimumQuantityPerOrder} and ${addon.maximumQuantityPerOrder}`,
+              );
+            }
+            const reservedAddons = await prisma.addonOrder.findMany({
+              where: {
+                addonId: addon.id,
+                order: {
+                  OR: [
+                    { paymentStatus: 'SUCCESSFUL' },
+                    {
+                      paymentStatus: 'PENDING',
+                      createdAt: { gte: dateFns.subMinutes(now, 30) },
+                    },
+                  ],
+                },
+              },
+              select: { quantity: true },
+            });
+            const quantityAvailable =
+              addon.totalQuantity -
+              reservedAddons.reduce((total, item) => total + item.quantity, 0);
+            if (addonOrder.quantity > quantityAvailable) {
+              throw new BadRequestException(
+                `Only ${quantityAvailable} ${addon.name} add-on(s) remain`,
+              );
+            }
+            await prisma.eventAddons.update({
+              where: { id: addon.id },
+              data: { updatedAt: now },
+            });
+            addonsOrders.push(addonOrder);
+          }
         }
         try {
           const order = await prisma.order.create({
@@ -470,7 +572,10 @@ export class OrdersService {
     }
   }
 
-  async getOrder(orderId: string) {
+  async getOrder(
+    orderId: string,
+    requester: Pick<User, 'id' | 'role'>,
+  ) {
     const order = await this.prisma.order.findFirst({
       where: {
         id: orderId,
@@ -487,6 +592,13 @@ export class OrdersService {
 
     if (!order) {
       throw new NotFoundException('Order not found');
+    }
+
+    const canManageOrders = [UserRole.admin, UserRole.viewer].includes(
+      requester.role,
+    );
+    if (!canManageOrders && order.userId !== requester.id) {
+      throw new ForbiddenException('You cannot access this order');
     }
 
     order.event['eventStatus'] = getEventStatus(order.event.endTime);
@@ -688,7 +800,10 @@ export class OrdersService {
     }
   }
 
-  async fillTicketDetails(dto: FillTicketDetailsDto) {
+  async fillTicketDetails(
+    dto: FillTicketDetailsDto,
+    requester: Pick<User, 'id' | 'role'>,
+  ) {
     // before allowing filling ticket details, confirm that the order is paid for
     const order = await this.prisma.order.findFirst({
       where: {
@@ -697,6 +812,12 @@ export class OrdersService {
     });
     if (!order) {
       throw new NotFoundException('Order not found');
+    }
+    const canManageOrders = [UserRole.admin, UserRole.viewer].includes(
+      requester.role,
+    );
+    if (!canManageOrders && order.userId !== requester.id) {
+      throw new ForbiddenException('You cannot update this order');
     }
     if (order.paymentStatus !== 'SUCCESSFUL') {
       throw new InternalServerErrorException(
@@ -721,25 +842,48 @@ export class OrdersService {
       //   }),
       // ]);
 
-      await Promise.all([
-        ...dto.tickets.map((_, index) => {
-          const { ticketId, ...details } = dto.tickets[index];
-          return this.prisma.ticket.update({
-            where: {
-              id: ticketId,
-            },
-            data: { ...details, checkinCode: nanoid() }, // Select from one of them using the index
-          });
-        }),
-      ]);
+      const ticketIds = dto.tickets.map(({ ticketId }) => ticketId);
+      if (new Set(ticketIds).size !== ticketIds.length) {
+        throw new BadRequestException('Each ticket can only be submitted once');
+      }
 
-      await this.prisma.order.update({
-        where: {
-          id: dto.orderId,
-        },
-        data: {
-          status: 'COMPLETED', /// set the order status to completed after they have filled it
-        },
+      await this.prisma.$transaction(async (prisma) => {
+        const tickets = await prisma.ticket.findMany({
+          where: { id: { in: ticketIds }, orderId: dto.orderId },
+          select: { id: true },
+        });
+        const orderTicketCount = await prisma.ticket.count({
+          where: { orderId: dto.orderId },
+        });
+        if (
+          tickets.length !== ticketIds.length ||
+          ticketIds.length !== orderTicketCount
+        ) {
+          throw new BadRequestException(
+            'Submit details for every ticket in this order',
+          );
+        }
+
+        const { count } = await prisma.order.updateMany({
+          where: {
+            id: dto.orderId,
+            paymentStatus: 'SUCCESSFUL',
+            status: 'PENDING',
+          },
+          data: { status: 'COMPLETED' },
+        });
+        if (count !== 1) {
+          throw new BadRequestException('Ticket details have already been filled');
+        }
+
+        await Promise.all(
+          dto.tickets.map(({ ticketId, ...details }) =>
+            prisma.ticket.update({
+              where: { id: ticketId },
+              data: { ...details, checkinCode: nanoid() },
+            }),
+          ),
+        );
       });
 
       return {
@@ -917,19 +1061,28 @@ export class OrdersService {
     });
   }
 
-  async checkPaymentStatus(orderId: string) {
-    const order = await this.getOrder(orderId);
+  async checkPaymentStatus(
+    orderId: string,
+    requester: Pick<User, 'id' | 'role'>,
+  ) {
+    const order = await this.getOrder(orderId, requester);
+    if (order.paymentStatus === 'SUCCESSFUL') {
+      return { paid: true, message: 'Order has already been paid for' };
+    }
+    if (!order.sessionId) {
+      return { paid: false, message: 'Order has not been paid for' };
+    }
     const paymentStatus = await this.stripeService.checkPaymentStatus(
       order.sessionId,
     );
     if (paymentStatus.paid === true) {
-      if (order.paymentStatus !== 'SUCCESSFUL') {
-        this.updateOrderPaymentStatus(
+      const paymentWasJustConfirmed = await this.markOrderPaymentSuccessful(
           order.id,
-          'SUCCESSFUL',
           paymentStatus.paymendId,
           paymentStatus.amount,
         );
+      if (paymentWasJustConfirmed) {
+        await this.sendOrderConfirmedEmail(order.id);
       }
       return {
         paid: true,

@@ -4,6 +4,7 @@ import {
   IsArray,
   IsBoolean,
   IsEmail,
+  IsInt,
   IsMongoId,
   IsNotEmpty,
   IsNumber,
@@ -54,13 +55,6 @@ export class CreateOrderDto {
   @IsOptional()
   promocodeId?: string;
 
-  @IsString()
-  @IsOptional()
-  cancelUrl?: string;
-
-  @IsString()
-  @IsOptional()
-  successUrl?: string;
 }
 
 export class TicketOrderDto {
@@ -69,13 +63,13 @@ export class TicketOrderDto {
   ticketTypeId: string;
 
   @IsNotEmpty()
-  @IsNumber()
+  @IsInt()
   @Type(() => Number)
   quantity: number;
 }
 
 export class AddonOrderDto {
-  @IsNumber()
+  @IsInt()
   @Type(() => Number)
   quantity: number;
 

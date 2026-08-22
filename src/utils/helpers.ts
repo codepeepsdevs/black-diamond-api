@@ -79,9 +79,8 @@ export const combineDateAndTime = (date: Date, time: string) => {
 export const isPromocodeActive = (promocode: PromoCode, orderCount: number) => {
   let isActive = false;
   const nowUTC = new Date();
-  if (orderCount < promocode.limit) {
-    isActive = true;
-  } else if (
+  if (
+    orderCount < promocode.limit &&
     nowUTC.getTime() >= promocode.promoStartDate.getTime() &&
     nowUTC.getTime() < promocode.promoEndDate.getTime()
   ) {

@@ -228,6 +228,9 @@ export class StripeService {
         customer: customerId,
         line_items: [...allLineItems, feeLineItem],
         mode: 'payment',
+        // Pending orders reserve inventory for the same 30-minute window used
+        // by OrdersService. A buyer cannot pay against an expired reservation.
+        expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
         success_url: successUrl,
         cancel_url: cancelUrl,
         metadata: {

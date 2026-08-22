@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -61,11 +62,11 @@ export class OrdersController {
       body,
       token,
     );
-    const successUrl = body.successUrl
-      ? `${body.successUrl}/${order.id}/fill-details`
-      : `${this.configService.get<string>(SUCCESS_URL)}/${order.id}/fill-details`;
-    const cancelUrl =
-      body.cancelUrl ?? this.configService.get<string>(CANCEL_URL);
+    const successUrl = this.getConfiguredCheckoutUrl(
+      SUCCESS_URL,
+      `${order.id}/fill-details`,
+    );
+    const cancelUrl = this.getConfiguredCheckoutUrl(CANCEL_URL);
 
     const {
       session,
@@ -156,16 +157,19 @@ export class OrdersController {
   @Post('fill-ticket-details')
   async fillTicketDetails(
     @Body() dto: FillTicketDetailsDto,
-    // @Req() req: RequestWithUser,
+    @Req() req: RequestWithUser,
   ) {
-    // const userId = req.user.id;
-
-    return this.ordersService.fillTicketDetails(dto);
+    return this.ordersService.fillTicketDetails(dto, req.user);
   }
 
+  @UseGuards(JwtAuthenticationGuard, RolesGuard)
+  @Roles()
   @Get('get-order/:orderId')
-  async getOrder(@Param('orderId') orderId: string) {
-    return this.ordersService.getOrder(orderId);
+  async getOrder(
+    @Param('orderId') orderId: string,
+    @Req() req: RequestWithUser,
+  ) {
+    return this.ordersService.getOrder(orderId, req.user);
   }
 
   @UseGuards(JwtAuthenticationGuard, RolesGuard)
@@ -259,8 +263,11 @@ export class OrdersController {
   @UseGuards(JwtAuthenticationGuard, RolesGuard)
   @Roles()
   @Get('check-payment-status/:orderId')
-  async checkPaymentStatus(@Param('orderId') orderId: string) {
-    return this.ordersService.checkPaymentStatus(orderId);
+  async checkPaymentStatus(
+    @Param('orderId') orderId: string,
+    @Req() req: RequestWithUser,
+  ) {
+    return this.ordersService.checkPaymentStatus(orderId, req.user);
   }
 
   @UseGuards(JwtAuthenticationGuard, RolesGuard)
@@ -282,5 +289,32 @@ export class OrdersController {
   @Get('tickets-sold-stats')
   async ticketsSoldStats(@Query() query: DateRangeQueryDto) {
     return this.ordersService.ticketsSoldStats(query);
+  }
+
+  private getConfiguredCheckoutUrl(
+    setting: typeof SUCCESS_URL | typeof CANCEL_URL,
+    suffix?: string,
+  ): string {
+    const configuredUrl = this.configService.get<string>(setting);
+    if (!configuredUrl) {
+      throw new BadRequestException(`${setting} must be configured`);
+    }
+
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(configuredUrl);
+    } catch {
+      throw new BadRequestException(`${setting} is not a valid URL`);
+    }
+
+    if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+      throw new BadRequestException(`${setting} must use HTTP(S)`);
+    }
+
+    if (suffix) {
+      parsedUrl.pathname = `${parsedUrl.pathname.replace(/\/$/, '')}/${suffix}`;
+    }
+
+    return parsedUrl.toString();
   }
 }
