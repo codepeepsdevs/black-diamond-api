@@ -82,7 +82,11 @@ async function reconcile() {
   });
   const report: ReconciliationRow[] = [];
 
-  for (const order of orders) {
+  console.error(
+    `Starting ${apply ? 'apply' : 'dry-run'} reconciliation for ${orders.length} paid orders with Checkout Session IDs.`,
+  );
+
+  for (const [index, order] of orders.entries()) {
     try {
       const payment = await getPaymentDetails(order.sessionId, order.id);
       if (!payment) {
@@ -116,7 +120,11 @@ async function reconcile() {
         orderId: order.id,
         sessionId: order.sessionId,
         status: 'verified',
-        reason: changed ? (apply ? 'corrected' : 'would correct') : 'already correct',
+        reason: changed
+          ? apply
+            ? 'corrected'
+            : 'would correct'
+          : 'already correct',
         databaseAmount: order.amountPaid || 0,
         stripeAmount: payment.amountPaid,
         changed,
@@ -131,11 +139,22 @@ async function reconcile() {
         changed: false,
       });
     }
+
+    if ((index + 1) % 25 === 0 || index + 1 === orders.length) {
+      console.error(`Processed ${index + 1}/${orders.length} orders.`);
+    }
   }
 
   console.log(
-    ['orderId', 'sessionId', 'status', 'reason', 'databaseAmount', 'stripeAmount', 'changed']
-      .join(','),
+    [
+      'orderId',
+      'sessionId',
+      'status',
+      'reason',
+      'databaseAmount',
+      'stripeAmount',
+      'changed',
+    ].join(','),
   );
   for (const row of report) {
     console.log(
