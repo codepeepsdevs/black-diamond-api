@@ -57,7 +57,6 @@ export class CheckinService {
   }
 
   async checkInByQRCode(dto: CheckInByQRCodeDto) {
-    console.log('dto', dto);
     const ticket = await this.prisma.ticket.findFirst({
       where: {
         checkinCode: dto.checkinCode,

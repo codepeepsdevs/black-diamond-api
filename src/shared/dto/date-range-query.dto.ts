@@ -9,7 +9,6 @@ export class DateRangeQueryDto {
   @Type(() => Date)
   @Transform(
     ({ value }) => {
-      console.log('value', value);
       // Handle empty strings, null, undefined, or invalid dates
       if (!value || value === '' || value === null) {
         return subMonths(startOfDay(new Date()), 1);
@@ -20,7 +19,6 @@ export class DateRangeQueryDto {
         return subMonths(startOfDay(new Date()), 1);
       }
 
-      console.log(parsedDate);
       return parsedDate;
     },
     { toClassOnly: true },

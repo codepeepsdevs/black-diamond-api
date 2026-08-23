@@ -67,7 +67,6 @@ export class OrdersService {
   async createOrder(dto: CreateOrderDto, token: string | undefined) {
     let user: User | null = null;
     let newAccount = false;
-    console.log('---------placing order-------');
     const event = await this.eventService.getEvent(dto.eventId);
     if (event.eventStatus === 'PAST') {
       throw new InternalServerErrorException(

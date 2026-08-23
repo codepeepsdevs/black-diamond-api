@@ -256,7 +256,6 @@ export class OrdersController {
   // @UsePipes(new ValidationPipe({ transform: true }))
   @Get('get-orders')
   async getOrders(@Query() query: GetOrdersQuery) {
-    console.log('query', query);
     return this.ordersService.getOrders(query);
   }
 

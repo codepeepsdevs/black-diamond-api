@@ -46,6 +46,7 @@ import { CheckinModule } from './checkin/checkin.module';
     // }),
     LoggerModule.forRoot({
       pinoHttp: {
+        level: process.env.LOG_LEVEL || (process.env.NODE_ENV === 'production' ? 'info' : 'debug'),
         // Pretty + color output for dev
         transport:
           process.env.NODE_ENV !== 'production'
@@ -59,15 +60,30 @@ import { CheckinModule } from './checkin/checkin.module';
                 },
               }
             : undefined,
-
+        // Quiet health/spam endpoints and reduce noise
+        autoLogging: {
+          ignore: (req) => req.url === '/api/health' || req.url.startsWith('/api/health'),
+        },
+        quietReqLogger: true,
+        customLogLevel: (req, res, err) => {
+          if (res.statusCode >= 500 || err) return 'error';
+          if (res.statusCode >= 400) return 'warn';
+          return 'info';
+        },
+        // Redact sensitive headers
+        redact: {
+          paths: ['req.headers.authorization', 'req.headers.cookie', 'req.headers["stripe-signature"]'],
+          remove: true,
+        },
         // Auto-add request details (safe serializable form)
         serializers: {
           req(req) {
             return {
+              id: req.id,
               method: req.method,
               url: req.url,
-              params: req.params,
               query: req.query,
+              // params omitted intentionally (redundant with url)
             };
           },
           res(res) {
