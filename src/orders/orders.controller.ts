@@ -272,6 +272,19 @@ export class OrdersController {
 
   @UseGuards(JwtAuthenticationGuard, RolesGuard)
   @Roles(UserRole.admin, UserRole.viewer)
+  @Post('admin/bulk-reconcile')
+  async bulkReconcile(@Body() dto: import('./dto/orders.dto').BulkReconcileDto) {
+    const results = await this.ordersService.reconcileOrders(dto.orderIds);
+    const summary = {
+      verified: results.filter((r) => r.status === 'verified').length,
+      skipped: results.filter((r) => r.status === 'skipped').length,
+      error: results.filter((r) => r.status === 'error').length,
+    };
+    return { results, summary };
+  }
+
+  @UseGuards(JwtAuthenticationGuard, RolesGuard)
+  @Roles(UserRole.admin, UserRole.viewer)
   @Get('get-revenue')
   async getRevenue(@Query() query: GetRevenueQueryDto) {
     return this.ordersService.getRevenue(query);

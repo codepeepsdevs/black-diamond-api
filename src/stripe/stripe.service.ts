@@ -346,6 +346,25 @@ export class StripeService {
         paidAt,
       };
     } catch (error) {
+      // Stripe 404 resource_missing means session not found (e.g. live vs test key mismatch) - treat as unpaid, not a server error
+      if (
+        error &&
+        typeof error === 'object' &&
+        'statusCode' in error &&
+        (error as any).statusCode === 404
+      ) {
+        console.warn(`Stripe session not found: ${sessionId}`);
+        return null;
+      }
+      if (
+        error &&
+        typeof error === 'object' &&
+        'code' in error &&
+        (error as any).code === 'resource_missing'
+      ) {
+        console.warn(`Stripe session not found: ${sessionId}`);
+        return null;
+      }
       console.log(error);
       throw new InternalServerErrorException(
         'Something went wrong while checking payment status of order',

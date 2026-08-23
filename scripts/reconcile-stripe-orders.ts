@@ -1,11 +1,18 @@
 import { PaymentStatus, PrismaClient } from '@prisma/client';
 import * as dotenv from 'dotenv';
+import * as fs from 'fs';
 import Stripe from 'stripe';
-
-dotenv.config();
 
 const apply = process.argv.includes('--apply');
 const verbose = process.argv.includes('--verbose');
+const envFileArg = process.argv.find((arg) => arg.startsWith('--env-file='));
+const envFile = envFileArg
+  ? envFileArg.slice('--env-file='.length).trim()
+  : '.env';
+if (!fs.existsSync(envFile)) {
+  throw new Error(`Env file not found: ${envFile}`);
+}
+dotenv.config({ path: envFile, override: true });
 const requestedConcurrency = Number(
   process.env.RECONCILIATION_CONCURRENCY || 10,
 );
@@ -23,6 +30,11 @@ const databaseUrl = process.env.DATABASE_URL;
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 if (!databaseUrl || !stripeSecretKey) {
   throw new Error('DATABASE_URL and STRIPE_SECRET_KEY must be configured.');
+}
+if (!stripeSecretKey.startsWith('sk_live_')) {
+  console.error(
+    `WARNING: running with a non-live Stripe key (${stripeSecretKey.slice(0, 10)}…). Live sessions will not resolve, so every order will be skipped. Pass --env-file=.env.production for production data.`,
+  );
 }
 
 const prisma = new PrismaClient();
@@ -103,10 +115,19 @@ async function reconcileOrder(
       };
     }
 
-    const changed =
-      order.amountPaid !== payment.amountPaid ||
-      order.paymentId !== payment.paymentId ||
-      !order.paidAt;
+    const correctionReasons: string[] = [];
+    if (order.amountPaid !== payment.amountPaid) {
+      correctionReasons.push('amount_mismatch');
+    }
+    if (!order.paymentId) {
+      correctionReasons.push('missing_payment_id');
+    } else if (order.paymentId !== payment.paymentId) {
+      correctionReasons.push('payment_id_mismatch');
+    }
+    if (!order.paidAt) {
+      correctionReasons.push('missing_paid_at');
+    }
+    const changed = correctionReasons.length > 0;
     if (apply && changed) {
       await prisma.order.update({
         where: { id: order.id },
@@ -122,11 +143,7 @@ async function reconcileOrder(
       orderId: order.id,
       sessionId: order.sessionId,
       status: 'verified',
-      reason: changed
-        ? apply
-          ? 'corrected'
-          : 'would correct'
-        : 'already correct',
+      reason: changed ? correctionReasons.join('|') : 'already correct',
       databaseAmount: order.amountPaid || 0,
       stripeAmount: payment.amountPaid,
       changed,

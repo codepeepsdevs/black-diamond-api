@@ -1085,6 +1085,109 @@ export class OrdersService {
     }
   }
 
+  async reconcileOrders(
+    orderIds: string[],
+  ): Promise<
+    Array<{
+      orderId: string;
+      status: 'verified' | 'skipped' | 'error';
+      reason: string;
+      paid?: boolean;
+    }>
+  > {
+    if (!orderIds?.length) return [];
+    const uniqueIds = [...new Set(orderIds)].slice(0, 100);
+    const concurrency = 5;
+
+    const results: Array<{
+      orderId: string;
+      status: 'verified' | 'skipped' | 'error';
+      reason: string;
+      paid?: boolean;
+    }> = new Array(uniqueIds.length);
+
+    let next = 0;
+    const worker = async () => {
+      while (next < uniqueIds.length) {
+        const idx = next++;
+        const orderId = uniqueIds[idx];
+        try {
+          const order = await this.prisma.order.findUnique({
+            where: { id: orderId },
+            select: { id: true, paymentStatus: true, sessionId: true },
+          });
+          if (!order) {
+            results[idx] = {
+              orderId,
+              status: 'skipped',
+              reason: 'order_not_found',
+            };
+            continue;
+          }
+          if (order.paymentStatus === 'SUCCESSFUL') {
+            results[idx] = {
+              orderId,
+              status: 'skipped',
+              reason: 'already_successful',
+              paid: true,
+            };
+            continue;
+          }
+          if (!order.sessionId) {
+            results[idx] = {
+              orderId,
+              status: 'skipped',
+              reason: 'missing_session_id',
+              paid: false,
+            };
+            continue;
+          }
+          const payment = await this.stripeService.getPaidCheckoutSession(
+            order.sessionId,
+          );
+          if (!payment || payment.orderId !== order.id) {
+            results[idx] = {
+              orderId,
+              status: 'skipped',
+              reason: 'stripe_not_paid_or_mismatch',
+              paid: false,
+            };
+            continue;
+          }
+          const justConfirmed =
+            await this.confirmCheckoutSessionPayment(payment);
+          if (justConfirmed) {
+            await this.sendOrderConfirmedEmail(order.id);
+            results[idx] = {
+              orderId,
+              status: 'verified',
+              reason: 'confirmed_and_emailed',
+              paid: true,
+            };
+          } else {
+            results[idx] = {
+              orderId,
+              status: 'verified',
+              reason: 'already_confirmed_by_concurrent_request',
+              paid: true,
+            };
+          }
+        } catch (e) {
+          const reason =
+            e instanceof Error ? e.message : 'unknown_error';
+          results[idx] = { orderId, status: 'error', reason };
+        }
+      }
+    };
+
+    await Promise.all(
+      Array.from({ length: Math.min(concurrency, uniqueIds.length) }, () =>
+        worker(),
+      ),
+    );
+    return results;
+  }
+
   async getRevenue(query: GetRevenueQueryDto) {
     const orders1 = await this.prisma.order.findMany({
       where: {

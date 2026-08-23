@@ -165,3 +165,10 @@ export class GetOrdersQuery extends DateRangeQueryDto {
   })
   eventStatus?: (typeof EventStatus)[number];
 }
+
+export class BulkReconcileDto {
+  @IsArray()
+  @IsMongoId({ each: true })
+  @IsNotEmpty()
+  orderIds: string[];
+}
