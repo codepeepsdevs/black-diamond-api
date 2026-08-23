@@ -612,6 +612,7 @@ export class OrdersService {
     const safeSkip = skip ?? undefined;
 
     const searchTerm = search?.trim();
+    const isValidObjectId = (v: string) => /^[0-9a-fA-F]{24}$/.test(v);
 
     // Build event time filter only when not filtering by specific eventId (eventId is more selective & indexed)
     const eventTimeFilter =
@@ -634,7 +635,7 @@ export class OrdersService {
       ...(searchTerm
         ? {
             OR: [
-              { id: { contains: searchTerm, mode: 'insensitive' as const } },
+              ...(isValidObjectId(searchTerm) ? [{ id: { equals: searchTerm } } as Prisma.OrderWhereInput] : []),
               { email: { contains: searchTerm, mode: 'insensitive' as const } },
               { firstName: { contains: searchTerm, mode: 'insensitive' as const } },
               { lastName: { contains: searchTerm, mode: 'insensitive' as const } },
