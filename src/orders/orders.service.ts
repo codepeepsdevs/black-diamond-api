@@ -599,46 +599,76 @@ export class OrdersService {
       eventStatus = 'all',
       endDate,
       startDate,
+      search,
+      paymentStatus,
+      status,
+      eventId,
     } = query;
     const { skip, take } = getPagination({ _page, _limit });
     const nowUTC = new Date();
+
+    // Cap limit to avoid full collection scan abuse (perf); undefined take = no pagination (used by reports)
+    const safeTake = take === undefined ? undefined : Math.min(Math.max(take, 1), 50);
+    const safeSkip = skip ?? undefined;
+
+    const searchTerm = search?.trim();
+
+    // Build event time filter only when not filtering by specific eventId (eventId is more selective & indexed)
+    const eventTimeFilter =
+      !eventId && eventStatus !== 'all'
+        ? eventStatus === 'past'
+          ? { startTime: { lt: nowUTC } }
+          : { startTime: { gt: nowUTC } }
+        : undefined;
+
     const whereObject: Prisma.OrderWhereInput = {
-      event: {
-        startTime:
-          eventStatus === 'past'
-            ? {
-                lt: nowUTC,
-              }
-            : eventStatus === 'upcoming'
-              ? {
-                  gt: nowUTC,
-                }
-              : undefined,
-      },
+      ...(eventId ? { eventId } : {}),
+      ...(paymentStatus ? { paymentStatus: paymentStatus as any } : {}),
+      ...(status ? { status: status as any } : {}),
+      ...(eventTimeFilter ? { event: eventTimeFilter } : {}),
       // if startdate or enddate is not provided, don't filter by createdAt
       createdAt: {
         gte: startDate ? dateFns.startOfDay(startDate) : undefined,
         lte: endDate ? dateFns.endOfDay(endDate) : undefined,
       },
+      ...(searchTerm
+        ? {
+            OR: [
+              { id: { contains: searchTerm, mode: 'insensitive' as const } },
+              { email: { contains: searchTerm, mode: 'insensitive' as const } },
+              { firstName: { contains: searchTerm, mode: 'insensitive' as const } },
+              { lastName: { contains: searchTerm, mode: 'insensitive' as const } },
+              { phone: { contains: searchTerm, mode: 'insensitive' as const } },
+              { event: { name: { contains: searchTerm, mode: 'insensitive' as const } } },
+            ],
+          }
+        : {}),
     };
+
     try {
       const [orders, ordersCount] = await Promise.all([
         this.prisma.order.findMany({
           where: { ...whereObject },
-          include: {
-            tickets: {
-              include: {
-                ticketType: true,
-              },
-            },
-            event: true,
-            user: true,
+          // Perf: select only needed fields; omit heavy user join for list
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phone: true,
+            amountPaid: true,
+            status: true,
+            paymentStatus: true,
+            createdAt: true,
+            eventId: true,
+            event: { select: { id: true, name: true, startTime: true } },
+            tickets: { select: { id: true, ticketType: { select: { id: true, name: true, price: true } } } },
           },
           orderBy: {
             createdAt: 'desc',
           },
-          skip,
-          take,
+          skip: safeSkip,
+          take: safeTake,
         }),
         this.prisma.order.count({
           where: {

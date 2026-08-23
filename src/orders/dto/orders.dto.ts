@@ -152,6 +152,7 @@ export class GetOrdersQuery extends DateRangeQueryDto {
 
   @IsOptional()
   @IsString()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   search?: string;
 
   @IsOptional()
@@ -164,6 +165,31 @@ export class GetOrdersQuery extends DateRangeQueryDto {
     return EventStatus.includes(value) ? value : undefined;
   })
   eventStatus?: (typeof EventStatus)[number];
+
+  @IsOptional()
+  @IsString()
+  @Transform(({ value }) => {
+    const allowed = ['PENDING', 'SUCCESSFUL', 'FAILED', 'CANCELLED', 'PROCESSING', 'all'];
+    if (typeof value !== 'string') return undefined;
+    const v = value.toUpperCase();
+    return allowed.includes(v) ? (v === 'ALL' ? undefined : v) : undefined;
+  })
+  paymentStatus?: string;
+
+  @IsOptional()
+  @IsString()
+  @Transform(({ value }) => {
+    const allowed = ['PENDING', 'COMPLETED', 'CANCELLED', 'all'];
+    if (typeof value !== 'string') return undefined;
+    const v = value.toUpperCase();
+    return allowed.includes(v) ? (v === 'ALL' ? undefined : v) : undefined;
+  })
+  status?: string;
+
+  @IsOptional()
+  @IsString()
+  @Transform(({ value }) => (typeof value === 'string' && value.length === 24 ? value : undefined))
+  eventId?: string;
 }
 
 export class BulkReconcileDto {
