@@ -13,12 +13,6 @@ enum UserRole {
   viewer
 }
 
-// enum TicketLevelType {
-//   DIAMOND
-//   GENERAL
-//   VIP
-// }
-
 enum OrderStatus {
   PENDING
   COMPLETED
@@ -26,10 +20,10 @@ enum OrderStatus {
 }
 
 enum PaymentStatus {
-  PENDING // payment initiated but not completed
-  SUCCESSFUL // payment successful
-  FAILED // payment failed
-  PROCESSING // payment is being processed by the payment gateway
+  PENDING
+  SUCCESSFUL
+  FAILED
+  PROCESSING
 }
 
 enum Gender {
@@ -51,11 +45,6 @@ enum TicketTypeVisibility {
   CUSTOM_SCHEDULE
 }
 
-// enum EventStatus {
-//   UPCOMING
-//   PAST
-// }
-
 enum LocationType {
   ONLINE_EVENT
   VENUE
@@ -73,20 +62,15 @@ model User {
   emailConfirmed Boolean  @default(false)
   role           UserRole @default(user)
 
-  // Password reset fields
   resetToken       String?
   resetTokenExpiry DateTime?
+  refreshToken     String?
+  authMethod       AuthMethod
+  confirmToken     String?
 
-  // Authentication and authorization fields
-  refreshToken String?
-  authMethod   AuthMethod
-  confirmToken String?
-
-  // One-to-one relationship with Address
   address   Address? @relation("UserAddress", fields: [addressId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   addressId String?  @unique @db.ObjectId
 
-  // One-to-one relationship with BillingInfo
   billingInfo   BillingInfo? @relation("UserBillingInfo", fields: [billingInfoId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   billingInfoId String?      @unique @db.ObjectId
 
@@ -182,7 +166,7 @@ model Event {
   name        String
   description String?
 
-  highlights String[] @default([]) // The images from past events
+  highlights String[] @default([])
 
   images                  String[]      @default([])
   coverImage              String
@@ -191,13 +175,9 @@ model Event {
   startTime               DateTime
   endTime                 DateTime
   summary                 String
-  // startDateOfSale         DateTime
-  // endDateOfSale           DateTime
   ticketTypes             TicketType[]
   isPublished             Boolean       @default(false)
-  // eventBriteURL           String?
-  // eventStatus             EventStatus   @default(UPCOMING)
-  ticketSalesEndMessage   String? // These two (displayTicketsRemainder) would be a field in the update event details controller/service or endpoint
+  ticketSalesEndMessage   String?
   displayTicketsRemainder Boolean       @default(false)
 
   refundPolicy    String?
@@ -208,6 +188,10 @@ model Event {
   order      Order[]
   addons     EventAddons[]
   promocodes PromoCode[]
+
+  @@index([isPublished, startTime])
+  @@index([name])
+  @@index([createdAt])
 }
 
 model TicketType {
@@ -216,7 +200,7 @@ model TicketType {
   quantity  Int
   startDate DateTime?
   endDate   DateTime?
-  price     Float // A ticket price of zero means a free ticket type..
+  price     Float
 
   minQty     Int?                 @default(1)
   maxQty     Int?
@@ -232,6 +216,10 @@ model TicketType {
   updatedAt DateTime @updatedAt
 
   tickets Ticket[]
+
+  @@index([eventId])
+  @@index([eventId, visibility])
+  @@index([startDate, endDate])
 }
 
 model PromoCode {
@@ -253,15 +241,17 @@ model PromoCode {
   updatedAt DateTime @updatedAt
   order     Order[]
   Event     Event    @relation(fields: [eventId], references: [id])
+
+  @@index([eventId])
+  @@index([key])
 }
 
 model Order {
   id            String        @id @default(auto()) @map("_id") @db.ObjectId
   user          User?         @relation(fields: [userId], references: [id])
   userId        String?       @db.ObjectId
-  tickets       Ticket[] // One-to-many relationship with Ticket
-  // totalAmount Float // Total amount for the order
-  status        OrderStatus   @default(PENDING) // Status of the order
+  tickets       Ticket[]
+  status        OrderStatus   @default(PENDING)
   paymentStatus PaymentStatus @default(PENDING)
   paymentId     String?
   amountPaid    Float?        @default(0)
@@ -270,7 +260,6 @@ model Order {
   totalCharges  Float?        @default(0)
   sessionId     String?
 
-  // Contact details
   firstName String?
   lastName  String?
   email     String?
@@ -306,6 +295,9 @@ model AddonOrder {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([orderId])
+  @@index([addonId])
 }
 
 model Ticket {
@@ -315,23 +307,27 @@ model Ticket {
   orderId      String     @db.ObjectId
   ticketType   TicketType @relation(fields: [ticketTypeId], references: [id])
   ticketTypeId String     @db.ObjectId
-  // unitPrice    Float
-  // totalPrice   Float
 
-  // details filled in ticket
   firstName   String?
   lastName    String?
   email       String?
   phone       String?
   gender      Gender?
-  promoCodeId String? @db.ObjectId // TODO: before applying a promocode to a ticket verify that it belongs to the ticket both in the frontend and in the backend
+  promoCodeId String? @db.ObjectId
 
-  // Check-in fields
   checkedIn   Boolean   @default(false)
   checkedInAt DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([ticketTypeId])
+  @@index([orderId])
+  @@index([ticketTypeId, orderId])
+  @@index([checkedIn])
+  @@index([email])
+  @@index([firstName])
+  @@index([lastName])
 }
 
 model EventAddons {
@@ -345,10 +341,6 @@ model EventAddons {
   startTime               DateTime
   endTime                 DateTime
   price                   Float
-  // showSaleAndStatusOnCheckout Boolean  @default(false)
-  // visible                     Boolean
-  // eTicket                     Boolean
-  // willCall                    Boolean
 
   eventId String @db.ObjectId
   event   Event  @relation(fields: [eventId], references: [id])
@@ -356,9 +348,10 @@ model EventAddons {
   createdAt  DateTime     @default(now())
   updatedAt  DateTime     @updatedAt
   addonOrder AddonOrder[]
+
+  @@index([eventId])
 }
 
-// promoter
 model Promoter {
   id              String  @id @default(auto()) @map("_id") @db.ObjectId
   firstName       String
