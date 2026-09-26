@@ -251,7 +251,7 @@ export class EventsService {
         }
         return true;
       },
-    );
+    ) as typeof event.ticketTypes;
 
     event['eventStatus'] = getEventStatus(event.endTime);
 
@@ -298,7 +298,7 @@ export class EventsService {
         }
         return true;
       },
-    );
+    ) as typeof event.ticketTypes;
 
     event['eventStatus'] = getEventStatus(event.endTime);
 
