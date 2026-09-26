@@ -37,6 +37,18 @@ export type EventStatus = { eventStatus: 'UPCOMING' | 'PAST' };
 export class EventsService {
   constructor(private prisma: PrismaService) {}
 
+  private normalizeTicketTypes<T extends { _count?: { tickets?: number } }>(
+    ticketTypes: T[],
+  ) {
+    return ticketTypes.map((ticketType) => {
+      const { _count, ...rest } = ticketType as T & { _count?: { tickets?: number } };
+      return {
+        ...rest,
+        soldQuantity: _count?.tickets ?? 0,
+      };
+    });
+  }
+
   async createEventDetails(
     {
       startDate,
@@ -83,7 +95,6 @@ export class EventsService {
       console.log(e);
       throw new HttpException(
         'Error occurred while creating event details',
-
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
@@ -199,16 +210,18 @@ export class EventsService {
 
   async getEvent(eventId: Event['id']) {
     const event = await this.prisma.event.findFirst({
-      where: {
-        id: eventId,
-      },
+      where: { id: eventId },
       include: {
         ticketTypes: {
           include: {
-            tickets: {
-              where: {
-                order: {
-                  paymentStatus: 'SUCCESSFUL',
+            _count: {
+              select: {
+                tickets: {
+                  where: {
+                    order: {
+                      paymentStatus: 'SUCCESSFUL',
+                    },
+                  },
                 },
               },
             },
@@ -222,29 +235,23 @@ export class EventsService {
       throw new NotFoundException('Event not found');
     }
 
-    event.ticketTypes = event.ticketTypes.filter((ticketType, index) => {
-      const soldQuantity = ticketType.tickets.length;
-
-      event.ticketTypes[index]['soldQuantity'] = soldQuantity;
-      // TODO: Handle the fact that it should not be showing in typescript also
-      // Delete the tickets field
-      delete event.ticketTypes[index].tickets;
-
-      // removing ticket types that are not yet displayable
-      if (ticketType.visibility === 'VISIBLE') {
+    event.ticketTypes = this.normalizeTicketTypes(event.ticketTypes).filter(
+      (ticketType) => {
+        if (ticketType.visibility === 'VISIBLE') {
+          return true;
+        }
+        if (ticketType.visibility === 'CUSTOM_SCHEDULE') {
+          return true;
+        }
+        if (ticketType.visibility === 'HIDDEN') {
+          return false;
+        }
+        if (ticketType.visibility === 'HIDDEN_WHEN_NOT_ON_SALE') {
+          return isTicketTypeVisible(ticketType.startDate, ticketType.endDate);
+        }
         return true;
-      } else if (ticketType.visibility === 'CUSTOM_SCHEDULE') {
-        return true;
-      } else if (ticketType.visibility === 'HIDDEN') {
-        return false;
-      } else if (ticketType.visibility === 'HIDDEN_WHEN_NOT_ON_SALE') {
-        // check if it is within the time period the ticket should show
-        // this is done by comparing if current date is within start and end date
-        return isTicketTypeVisible(ticketType.startDate, ticketType.endDate);
-      } else {
-        return true;
-      }
-    });
+      },
+    );
 
     event['eventStatus'] = getEventStatus(event.endTime);
 
@@ -253,16 +260,18 @@ export class EventsService {
 
   async adminGetEvent(eventId: Event['id']) {
     const event = await this.prisma.event.findFirst({
-      where: {
-        id: eventId,
-      },
+      where: { id: eventId },
       include: {
         ticketTypes: {
           include: {
-            tickets: {
-              where: {
-                order: {
-                  paymentStatus: 'SUCCESSFUL',
+            _count: {
+              select: {
+                tickets: {
+                  where: {
+                    order: {
+                      paymentStatus: 'SUCCESSFUL',
+                    },
+                  },
                 },
               },
             },
@@ -276,27 +285,20 @@ export class EventsService {
       throw new NotFoundException('Event not found');
     }
 
-    event.ticketTypes = event.ticketTypes.filter((ticketType, index) => {
-      const soldQuantity = ticketType.tickets.length;
-
-      event.ticketTypes[index]['soldQuantity'] = soldQuantity;
-      // TODO: Handle the fact that it should not be showing in typescript also
-      // Delete the tickets field
-      delete event.ticketTypes[index].tickets;
-
-      // removing ticket types that are not yet displayable
-      if (ticketType.visibility === 'VISIBLE') {
+    event.ticketTypes = this.normalizeTicketTypes(event.ticketTypes).filter(
+      (ticketType) => {
+        if (ticketType.visibility === 'VISIBLE') {
+          return true;
+        }
+        if (ticketType.visibility === 'HIDDEN') {
+          return false;
+        }
+        if (ticketType.visibility === 'CUSTOM_SCHEDULE') {
+          return isTicketTypeVisible(ticketType.startDate, ticketType.endDate);
+        }
         return true;
-      } else if (ticketType.visibility === 'HIDDEN') {
-        return false;
-      } else if (ticketType.visibility === 'CUSTOM_SCHEDULE') {
-        // check if it is within the time period the ticket should show
-        // this is done by comparing if current date is within start and end date
-        return isTicketTypeVisible(ticketType.startDate, ticketType.endDate);
-      } else {
-        return true;
-      }
-    });
+      },
+    );
 
     event['eventStatus'] = getEventStatus(event.endTime);
 
@@ -331,11 +333,10 @@ export class EventsService {
       isActive: isPromocodeActive(promocode, promocode._count.order),
     };
   }
+
   async getPromocodeById(id: string) {
     const promocode = await this.prisma.promoCode.findFirst({
-      where: {
-        id: id,
-      },
+      where: { id },
       include: {
         ticketTypes: true,
         _count: {
@@ -379,13 +380,9 @@ export class EventsService {
         },
         startTime:
           eventStatus === 'past'
-            ? {
-                lt: nowUTC,
-              }
+            ? { lt: nowUTC }
             : eventStatus === 'upcoming'
-              ? {
-                  gt: nowUTC,
-                }
+              ? { gt: nowUTC }
               : undefined,
       };
 
@@ -396,10 +393,14 @@ export class EventsService {
             _count: true,
             ticketTypes: {
               include: {
-                tickets: {
-                  where: {
-                    order: {
-                      paymentStatus: 'SUCCESSFUL',
+                _count: {
+                  select: {
+                    tickets: {
+                      where: {
+                        order: {
+                          paymentStatus: 'SUCCESSFUL',
+                        },
+                      },
                     },
                   },
                 },
@@ -408,34 +409,18 @@ export class EventsService {
           },
           take,
           skip,
-          orderBy: {
-            createdAt: 'desc',
-          },
+          orderBy: { createdAt: 'desc' },
         }),
         this.prisma.event.count({
           where: { ...whereObject },
-          take,
-          skip,
         }),
       ]);
 
       const extendedEvents = events.map((event) => {
-        // let eventGross = 0;
-        // let totalTickets = 0;
-        // let totalSales = 0;
         const eventStatus = getEventStatus(event.endTime);
-
-        // event.ticketTypes.forEach((ticketType) => {
-        //   eventGross =
-        //     eventGross + ticketType.price * ticketType.tickets.length;
-
-        //   totalTickets = totalSales + ticketType.quantity;
-        //   totalSales = totalSales + ticketType.tickets.length;
-        // });
-
         return {
           ...event,
-          // totalTickets,
+          ticketTypes: this.normalizeTicketTypes(event.ticketTypes),
           eventStatus,
         };
       });
@@ -468,19 +453,11 @@ export class EventsService {
           contains: search,
           mode: 'insensitive',
         },
-        /**
-         * the query would filter by startTime if eventStatus is past or upciming otherwise,
-         * it would filter by publish status, returning only non published events if it is draft
-         * */
         startTime:
           eventStatus === 'past'
-            ? {
-                lt: nowUTC,
-              }
+            ? { lt: nowUTC }
             : eventStatus === 'upcoming'
-              ? {
-                  gt: nowUTC,
-                }
+              ? { gt: nowUTC }
               : undefined,
         isPublished:
           eventStatus === 'draft'
@@ -497,10 +474,14 @@ export class EventsService {
             _count: true,
             ticketTypes: {
               include: {
-                tickets: {
-                  where: {
-                    order: {
-                      paymentStatus: 'SUCCESSFUL',
+                _count: {
+                  select: {
+                    tickets: {
+                      where: {
+                        order: {
+                          paymentStatus: 'SUCCESSFUL',
+                        },
+                      },
                     },
                   },
                 },
@@ -517,21 +498,14 @@ export class EventsService {
           },
           take,
           skip,
-          orderBy: {
-            createdAt: 'desc',
-          },
+          orderBy: { createdAt: 'desc' },
         }),
         this.prisma.event.count({
-          where: {
-            ...whereObject,
-          },
-          take,
-          skip,
+          where: { ...whereObject },
         }),
       ]);
 
       const extendedEvents = events.map((event) => {
-        // Calculate gross from actual amounts paid, not ticket prices
         const eventGross = event.order.reduce((sum, order) => {
           return sum + (order.amountPaid || 0);
         }, 0);
@@ -542,7 +516,7 @@ export class EventsService {
 
         event.ticketTypes.forEach((ticketType) => {
           totalTickets = totalTickets + ticketType.quantity;
-          totalSales = totalSales + ticketType.tickets.length;
+          totalSales = totalSales + (ticketType._count?.tickets ?? 0);
         });
 
         return {
@@ -550,6 +524,7 @@ export class EventsService {
           gross: eventGross,
           totalTickets,
           totalSales,
+          ticketTypes: this.normalizeTicketTypes(event.ticketTypes),
           eventStatus,
         };
       });
@@ -569,9 +544,7 @@ export class EventsService {
   async getEventTicketTypes(eventId: Event['id']) {
     try {
       const event = await this.prisma.event.findUnique({
-        where: {
-          id: eventId,
-        },
+        where: { id: eventId },
         include: {
           ticketTypes: {
             include: {
@@ -588,9 +561,7 @@ export class EventsService {
                 },
               },
             },
-            orderBy: {
-              createdAt: 'desc',
-            },
+            orderBy: { createdAt: 'desc' },
           },
         },
       });
@@ -607,23 +578,22 @@ export class EventsService {
           const nowUTC = new Date();
           if (nowUTC > ticketType.endDate) {
             saleStatus = 'sale-ended';
-          } else {
-            if (nowUTC >= ticketType.startDate) {
-              saleStatus = 'on-sale';
-            } else {
-              saleStatus = 'not-on-sale';
-            }
-          }
-        } else {
-          if (event.endTime < new Date()) {
-            saleStatus = 'sale-ended';
-          } else {
+          } else if (nowUTC >= ticketType.startDate) {
             saleStatus = 'on-sale';
+          } else {
+            saleStatus = 'not-on-sale';
           }
+        } else if (event.endTime < new Date()) {
+          saleStatus = 'sale-ended';
         }
 
+        const { _count, ...rest } = ticketType as typeof ticketType & {
+          _count?: { tickets?: number };
+        };
+
         return {
-          ...ticketType,
+          ...rest,
+          soldQuantity: _count?.tickets ?? 0,
           saleStatus,
         };
       });
@@ -660,9 +630,7 @@ export class EventsService {
             },
           },
         },
-        orderBy: {
-          createdAt: 'desc',
-        },
+        orderBy: { createdAt: 'desc' },
       });
 
       const extendedPromocodes = promocodes.map((promocode) => {
@@ -685,15 +653,9 @@ export class EventsService {
   async getAddons(eventId: Event['id']) {
     try {
       const addons = await this.prisma.eventAddons.findMany({
-        where: {
-          eventId,
-        },
-        include: {
-          event: true,
-        },
-        orderBy: {
-          createdAt: 'desc',
-        },
+        where: { eventId },
+        include: { event: true },
+        orderBy: { createdAt: 'desc' },
       });
       return addons;
     } catch (e) {
@@ -831,7 +793,6 @@ export class EventsService {
       },
       include: {
         ticketTypes: true,
-        // promocodes: true,
         addons: true,
       },
     });
@@ -868,8 +829,6 @@ export class EventsService {
           });
 
           await Promise.all([
-            // Copy addons
-
             eventToCopy.addons.length > 0
               ? tx.eventAddons.createMany({
                   data: eventToCopy.addons.map((addon) => {
@@ -889,26 +848,6 @@ export class EventsService {
                 })
               : null,
 
-            // Copy promocodes
-            // eventToCopy.promocodes.length > 0
-            //   ? tx.promoCode.createMany({
-            //       data: eventToCopy.promocodes.map((promocode) => {
-            //         return {
-            //           eventId: eventCopy.id,
-            //           key: promocode.key,
-            //           limit: promocode.limit,
-            //           name: promocode.name,
-            //           promoStartDate: utcStartTime,
-            //           promoEndDate: utcEndTime,
-            //           absoluteDiscountAmount: promocode.absoluteDiscountAmount,
-            //           percentageDiscountAmount:
-            //             promocode.percentageDiscountAmount,
-            //         };
-            //       }),
-            //     })
-            //   : null,
-
-            // Copy tickettypes
             eventToCopy.ticketTypes.length > 0
               ? tx.ticketType.createMany({
                   data: eventToCopy.ticketTypes.map((ticketType) => ({
@@ -929,8 +868,8 @@ export class EventsService {
           return eventCopy;
         },
         {
-          maxWait: 250000, // Maximum time (in milliseconds) to wait for the transaction to start
-          timeout: 250000, // Maximum time (in milliseconds) for the transaction to complete
+          maxWait: 250000,
+          timeout: 250000,
         },
       );
 
@@ -1132,8 +1071,6 @@ export class EventsService {
     if (!imageToRemove) {
       throw new NotFoundException('Image to remove not found');
     }
-    // Strip the file extension to get the public_id
-    // const publicId = imageToRemove.replace(/\.[^/.]+$/, ''); // Removes the extension
 
     try {
       await this.prisma.$transaction(
@@ -1146,12 +1083,10 @@ export class EventsService {
               images: updatedImages,
             },
           });
-          // TODO: Delete the file from cloudinary
-          // await cloudinary.uploader.destroy(publicId);
         },
         {
-          maxWait: 250000, // Maximum time (in milliseconds) to wait for the transaction to start
-          timeout: 250000, // Maximum time (in milliseconds) for the transaction to complete
+          maxWait: 250000,
+          timeout: 250000,
         },
       );
     } catch (e) {
@@ -1261,12 +1196,6 @@ export class EventsService {
       throw new NotFoundException('Event to delete not found');
     }
 
-    // const allPromocodes = eventDetails.ticketTypes.reduce(
-    //   (accValue: string[], ticketType) => {
-    //     return accValue.concat(ticketType.promoCodeIds);
-    //   },
-    //   [],
-    // );
     const allTickets = eventDetails.ticketTypes.reduce(
       (accValue: string[], ticketType) => {
         return accValue.concat(ticketType.tickets.map((ticket) => ticket.id));
@@ -1285,7 +1214,6 @@ export class EventsService {
     const allAddons = eventDetails.addons.map((addon) => addon.id);
     const allOrders = eventDetails.order.map((order) => order.id);
 
-    // DELETE QUERIES
     const deletePromocodes = this.prisma.promoCode.deleteMany({
       where: {
         eventId: eventId,
@@ -1337,8 +1265,6 @@ export class EventsService {
         id: eventDetails.id,
       },
     });
-    // TODO: Delete images from cloudinary
-    // END DELETE QUERIES
 
     try {
       await this.prisma.$transaction([
@@ -1406,13 +1332,9 @@ export class EventsService {
     });
 
     try {
-      // Start a transaction to ensure atomic operations
       await this.prisma.$transaction([
-        // Update PromoCodes to remove the deleted TicketType ID
         ...deletePromocodes,
-        // Delete Tickets of tickettype
         deleteTickets,
-        // Delete the TicketType
         deleteTicketType,
       ]);
       console.log('TicketType and related records deleted successfully');
@@ -1457,7 +1379,6 @@ export class EventsService {
         },
       });
     });
-    // const removeFromTicketType = promocode.ticketTypes.map((ticketType) => {
     const removeFromTicketType = this.prisma.promoCode.update({
       where: {
         id: promocodeId,
@@ -1468,7 +1389,6 @@ export class EventsService {
         },
       },
     });
-    // });
     const _deletePromocode = this.prisma.promoCode.delete({
       where: {
         id: promocodeId,
@@ -1476,13 +1396,9 @@ export class EventsService {
     });
 
     try {
-      // Start a transaction to ensure atomic operations
       await this.prisma.$transaction([
-        // Update orders to remove the promocode
         ...removeFromOrder,
-        // update the ticket types the promocode was applied to and remove it from it's array of promocodes
         removeFromTicketType,
-        // Delete the TicketType
         _deletePromocode,
       ]);
 
