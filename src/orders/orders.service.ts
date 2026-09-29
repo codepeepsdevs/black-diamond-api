@@ -1274,7 +1274,6 @@ export class OrdersService {
           eventId: eventId,
         },
         include: {
-          tickets: true,
           _count: {
             select: {
               tickets: {
@@ -1289,7 +1288,10 @@ export class OrdersService {
         },
       });
 
-      return ticketTypeSales;
+      return ticketTypeSales.map(({ _count, ...rest }) => ({
+        ...rest,
+        soldQuantity: _count?.tickets ?? 0,
+      }));
     } catch (e) {
       console.log(e);
       throw new InternalServerErrorException('Unable to get ticket type sales');

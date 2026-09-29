@@ -29,15 +29,16 @@ async function bootstrap() {
   const devOrigin =
     process.env.NODE_ENV === 'development'
       ? [
-          'http://localhost:3000',
-          'http://localhost:3001',
-          'https://zvp3vrxl-3000.eun1.devtunnels.ms',
-          'https://10.78.227.232:3443',
-        ]
+        'http://localhost:3000',
+        'http://localhost:3001',
+        'https://zvp3vrxl-3000.eun1.devtunnels.ms',
+        'https://10.78.227.232:3443',
+      ]
       : [];
   app.enableCors({
     origin: [
       ...devOrigin,
+      'http://localhost:3000',
       'https://www.eventsbyblackdiamond.com',
       'https://eventsbyblackdiamond.com',
       'https://black-diamond-client-dev.vercel.app',
